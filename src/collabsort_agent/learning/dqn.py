@@ -13,9 +13,8 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.tensorboard.writer import SummaryWriter
 
-from collabsort_agent.learning.exploration_decay import ExplorationDecay
-from collabsort_agent.learning.learning import Config as LearningConfig
-from collabsort_agent.learning.learning import LearningAlgorithm
+from collabsort_agent.learning import ActionValueEstimator
+from collabsort_agent.learning import Config as LearningConfig
 
 
 def get_device() -> torch.device:
@@ -56,21 +55,11 @@ class QNetwork(nn.Module):
         return self.net(x)
 
 
-class DQN(LearningAlgorithm):
-    """Deep Q-Learning algorithm"""
+class DQN(ActionValueEstimator):
+    """Deep Q-Learning algorithm for estimating action values."""
 
-    def __init__(
-        self,
-        config: LearningConfig,
-        exploration_decay: ExplorationDecay,
-        state_size: int,
-        n_actions: int,
-    ) -> None:
-        super().__init__(config=config)
-
-        self.config = config
-        self.exploration_decay = exploration_decay
-        self.n_actions = n_actions
+    def __init__(self, config: LearningConfig, n_actions: int, state_size: int) -> None:
+        super().__init__(config=config, n_actions=n_actions)
 
         self.device = get_device()
 
@@ -102,34 +91,37 @@ class DQN(LearningAlgorithm):
         # Step counter used to decide when to sync the target network
         self.learning_step: int = 0
 
-        # Current exploration probability (set on first choose_action call)
-        self.epsilon: float = self.config.epsilon_start
-
         # Recorded loss values (used for logging)
         self.losses: list[float] = []
 
         # Average Q-values (used for logging)
         self.mean_q_values: list[float] = []
 
-    def choose_action(self, state: np.ndarray, training_step: int | None) -> int:
-        if training_step is not None:
-            # Update exploration probability
-            self.epsilon = self.exploration_decay.get_epsilon(
-                training_step=training_step
-            )
-
-        # With probability epsilon: explore (choose a random action)
-        if np.random.random() < self.epsilon:
-            return int(np.random.randint(0, self.n_actions))
-
-        # With probability (1-epsilon): exploit (greedily choose the best known action)
+    def get_action_values(self, state: np.ndarray) -> np.ndarray:
+        # Convert NumPy array to PyTorch tensor
         state_tensor = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
+
+        # Compute Q-Values for current state
         with torch.no_grad():
             q_values = self.q_network(state_tensor)
 
-        return int(torch.argmax(q_values, dim=1).item())
+        # Convert PyTorch tensor to NumPy array
+        return q_values.detach().cpu().numpy()
 
-    def store_transition(
+    def update_action_values(
+        self,
+        state: np.ndarray,
+        action: int,
+        reward: float,
+        next_state: np.ndarray,
+        done: bool = False,
+    ):
+        self._store_transition(
+            state=state, action=action, reward=reward, next_state=next_state, done=done
+        )
+        self._learn()
+
+    def _store_transition(
         self,
         state: np.ndarray,
         action: int,
@@ -137,10 +129,14 @@ class DQN(LearningAlgorithm):
         next_state: np.ndarray,
         done: bool = False,
     ) -> None:
+        """Store transition between states for future learning."""
+
         # Store transition in replay buffer
         self.replay_buffer.append((state, action, reward, next_state, done))
 
-    def learn(self) -> None:
+    def _learn(self) -> None:
+        """Update the Q-network parameters."""
+
         if len(self.replay_buffer) < self.config.batch_size:
             return
 
@@ -195,13 +191,6 @@ class DQN(LearningAlgorithm):
             self.target_network.load_state_dict(self.q_network.state_dict())
 
     def log_episode(self, logger: SummaryWriter, episode: int) -> None:
-        """Log information after an episode"""
-
-        logger.add_scalar(
-            tag="learning/exploration_probability",
-            scalar_value=self.epsilon,
-            global_step=episode,
-        )
         logger.add_scalar(
             tag="learning/td_loss",
             scalar_value=mean(self.losses),
@@ -217,27 +206,25 @@ class DQN(LearningAlgorithm):
         self.losses.clear()
         self.mean_q_values.clear()
 
-    def save(self, dir: str) -> None:
+    def save_state(self, dir: str) -> None:
         Path(dir).mkdir(parents=True, exist_ok=True)
-        file_path = f"{dir}/learning.pth"
+        file_path = f"{dir}/{self.state_filename}"
         torch.save(
             {
                 "q_network": self.q_network.state_dict(),
                 "target_network": self.target_network.state_dict(),
                 "optimizer": self.optimizer.state_dict(),
-                "epsilon": self.epsilon,
             },
             file_path,
         )
 
-    def load(self, dir: str) -> None:
-        file_path = f"{dir}/learning.pth"
+    def load_state(self, dir: str) -> None:
+        file_path = f"{dir}/{self.state_filename}"
         checkpoint = torch.load(file_path, map_location=self.device)
 
         self.q_network.load_state_dict(checkpoint["q_network"])
         self.target_network.load_state_dict(checkpoint["target_network"])
         self.optimizer.load_state_dict(checkpoint["optimizer"])
-        self.epsilon = float(checkpoint["epsilon"])
 
         # Target network is only used for inference during target computation.
         self.target_network.eval()

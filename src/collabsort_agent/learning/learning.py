@@ -29,55 +29,50 @@ class Config:
     # Size of the DQN replay buffer
     replay_buffer_size: int = 10000
 
-    # Starting exploration probability
-    epsilon_start: float = 1
-
-    # Minimum exploration probability at the end of decay
-    epsilon_min: float = 0.05
-
-    # Exploration probability decay algorithm
-    exploration_decay: Literal["lin", "exp"] = "lin"
-
-    # Percentage of training time during which exploration probability is decayed
-    exploration_decay_span: float = 0.5
-
     # Interval in learning steps to copy online weights to target network.
     target_network_sync_freq: int = 500
 
 
-class LearningAlgorithm(ABC):
-    """Abstract base class for learning algorithms"""
+class ActionValueEstimator(ABC):
+    """Base class for action value estimators."""
 
-    def __init__(self, config: Config) -> None:
+    def __init__(
+        self,
+        config: Config,
+        n_actions: int,
+    ) -> None:
         self.config = config
+        self.n_actions = n_actions
 
     @abstractmethod
-    def choose_action(self, state: np.ndarray, training_step: int | None) -> int:
-        """Select an action to perform"""
+    def get_action_values(self, state: np.ndarray) -> np.ndarray:
+        """Return the action values for all actions"""
 
     @abstractmethod
-    def store_transition(
+    def update_action_values(
         self,
         state: np.ndarray,
         action: int,
         reward: float,
         next_state: np.ndarray,
         done: bool = False,
-    ) -> None:
-        """Store a state transition for later learning"""
-
-    @abstractmethod
-    def learn(self) -> None:
-        """Update model parameters"""
+    ):
+        """Update action values after an action was taken"""
 
     @abstractmethod
     def log_episode(self, logger: SummaryWriter, episode: int) -> None:
         """Log information after an episode"""
 
     @abstractmethod
-    def save(self, dir: str) -> None:
-        """Save the learning component"""
+    def save_state(self, dir: str) -> None:
+        """Save the estimator state to disk"""
 
     @abstractmethod
-    def load(self, dir: str) -> None:
-        """Load a previously saved learning component"""
+    def load_state(self, dir: str) -> None:
+        """Load a previously saved estimator state from disk"""
+
+    @property
+    def state_filename(self) -> str:
+        """Return the file name for saving/loading estimator state"""
+
+        return "estimator.pth"

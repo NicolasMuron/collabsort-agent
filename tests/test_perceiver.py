@@ -1,5 +1,5 @@
 """
-Unit test for perception.
+Unit tests for perception.
 """
 
 import gymnasium as gym

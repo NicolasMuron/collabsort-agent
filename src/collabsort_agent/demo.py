@@ -1,5 +1,5 @@
 """
-Code for running a trained agent.
+Code for demoing a previously trained agent.
 """
 
 from pathlib import Path
@@ -8,7 +8,8 @@ import gymnasium as gym
 import tyro
 from gym_collabsort.config import Action, RenderMode
 
-from collabsort_agent.config import create_agent, load_cfg
+from collabsort_agent.config import load_cfg
+from collabsort_agent.train import create_agent
 
 
 def demo(train_dir: str) -> None:

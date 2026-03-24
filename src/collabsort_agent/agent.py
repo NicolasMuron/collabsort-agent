@@ -6,20 +6,20 @@ import numpy as np
 from gym_collabsort.config import Action
 from torch.utils.tensorboard.writer import SummaryWriter
 
-from collabsort_agent.learning import LearningAlgorithm
+from collabsort_agent.decision import Deliberator
 from collabsort_agent.memory import Memory
 from collabsort_agent.perception import Perceiver
 
 
 class Agent:
-    """An agent"""
+    """An agent interacting with its environment."""
 
     def __init__(
-        self, perceiver: Perceiver, memory: Memory, learner: LearningAlgorithm
+        self, perceiver: Perceiver, memory: Memory, deliberator: Deliberator
     ) -> None:
         self.perceiver = perceiver
         self.memory = memory
-        self.learner = learner
+        self.deliberator = deliberator
 
         # Current extended state (sensory + memory)
         self.current_extended_state: np.ndarray | None = None
@@ -36,7 +36,7 @@ class Agent:
         self.current_extended_state = extended_state
 
         self.current_action = Action(
-            self.learner.choose_action(
+            self.deliberator.choose_action(
                 state=extended_state, training_step=training_step
             )
         )
@@ -54,8 +54,8 @@ class Agent:
             sensory_state=next_sensory_state
         )
 
-        # Store state transition
-        self.learner.store_transition(
+        # Update action values
+        self.deliberator.estimator.update_action_values(
             state=self.current_extended_state,
             action=self.current_action.value,
             reward=reward,
@@ -63,21 +63,21 @@ class Agent:
             done=done,
         )
 
-        # Perform learning
-        self.learner.learn()
-
     def log_episode(self, logger: SummaryWriter | None, episode: int) -> None:
         """Log agent information after an episode"""
 
         if logger is not None:
-            self.learner.log_episode(logger=logger, episode=episode)
+            self.deliberator.log_episode(logger=logger, episode=episode)
+            self.deliberator.estimator.log_episode(logger=logger, episode=episode)
 
     def save_state(self, dir: str) -> None:
         """Save the agent state to disk"""
 
-        self.learner.save(dir=dir)
+        self.deliberator.save_state(dir=dir)
+        self.deliberator.estimator.save_state(dir=dir)
 
     def load_state(self, dir: str) -> None:
         """Load the agent state from disk"""
 
-        self.learner.load(dir=dir)
+        self.deliberator.estimator.load_state(dir=dir)
+        self.deliberator.load_state(dir=dir)

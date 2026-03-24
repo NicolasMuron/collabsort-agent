@@ -11,7 +11,76 @@ from gym_collabsort.config import Action
 from torch.utils.tensorboard.writer import SummaryWriter
 from tqdm import trange
 
-from collabsort_agent.config import Config, create_agent, save_cfg
+from collabsort_agent.agent import Agent
+from collabsort_agent.config import Config, save_cfg
+from collabsort_agent.decision.epsilon_greedy import EpsilonGreedy
+from collabsort_agent.decision.exploration_decay import (
+    ExponentialExplorationDecay,
+    LinearExplorationDecay,
+)
+from collabsort_agent.learning.dqn import DQN
+from collabsort_agent.memory import Memory
+from collabsort_agent.perception import Perceiver
+
+
+def create_agent(config: Config, sample_obs: dict) -> Agent:
+    """Create an agent with a specific configuration"""
+
+    # Initialize perception
+    perceiver = Perceiver(
+        config=config.perception,
+        treadmill_rows=[config.env.upper_treadmill_row, config.env.lower_treadmill_row],
+    )
+    sample_sensory_state = perceiver.get_sensory_state(obs=sample_obs)
+
+    if config.memory.type == "none":
+        memory = Memory()
+    else:
+        raise Exception(f"Unrecognized memory type: {config.memory.type}")
+
+    sample_extended_state = memory.get_extended_state(
+        sensory_state=sample_sensory_state
+    )
+
+    # Compute decision hyperparameters
+    extended_state_size = len(sample_extended_state)
+    n_actions = len(Action) + len(memory.get_actions())
+
+    # Initialize learning
+    if config.learning.algorithm == "dqn":
+        estimator = DQN(
+            config=config.learning,
+            n_actions=n_actions,
+            state_size=extended_state_size,
+        )
+    else:
+        raise Exception(f"Unrecognized learning algorithm: {config.learning.algorithm}")
+
+    # Initialize decision-making
+    if config.decision.algorithm == "eps":
+        # Initialize exploration probability decay algorithm
+        if config.decision.exploration_decay == "lin":
+            exploration_decay = LinearExplorationDecay(
+                config=config.decision, total_steps=config.total_steps
+            )
+        elif config.decision.exploration_decay == "exp":
+            exploration_decay = ExponentialExplorationDecay(
+                config=config.decision, total_steps=config.total_steps
+            )
+        else:
+            raise Exception(
+                f"Unrecognized exploration decay: {config.decision.exploration_decay}"
+            )
+
+        deliberator = EpsilonGreedy(
+            config=config.decision,
+            estimator=estimator,
+            exploration_decay=exploration_decay,
+        )
+    else:
+        raise Exception(f"Unrecognized decision algorithm: {config.decision.algorithm}")
+
+    return Agent(perceiver=perceiver, memory=memory, deliberator=deliberator)
 
 
 @dataclass
@@ -64,7 +133,8 @@ class EpisodeMetrics:
 def train(config: Config) -> None:
     """Train an agent"""
 
-    train_dir: str = f"runs/train_{config.learning.algorithm}_{int(time.time())}"
+    # Create directory path for training output
+    train_dir: str = f"runs/train_{config.decision.algorithm}_{config.learning.algorithm}_{int(time.time())}"
 
     logger = None
     if config.log_events:

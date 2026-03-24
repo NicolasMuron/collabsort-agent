@@ -6,13 +6,13 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
-from collabsort_agent.learning import Config as LearningConfig
+from collabsort_agent.decision import Config as DecisionConfig
 
 
 class ExplorationDecay(ABC):
     """Abstract base class for exploration decay algorithms"""
 
-    def __init__(self, config: LearningConfig, total_steps: int) -> None:
+    def __init__(self, config: DecisionConfig, total_steps: int) -> None:
         self.config = config
 
         # Number of steps during which exploration probability is decayed
@@ -33,7 +33,7 @@ class ExplorationDecay(ABC):
 class LinearExplorationDecay(ExplorationDecay):
     """Linear exploration decay"""
 
-    def __init__(self, config: LearningConfig, total_steps: int) -> None:
+    def __init__(self, config: DecisionConfig, total_steps: int) -> None:
         super().__init__(config=config, total_steps=total_steps)
 
         # Pre-compute decay slope (ε_min - ε_start) / decay_steps
@@ -49,7 +49,7 @@ class LinearExplorationDecay(ExplorationDecay):
 class ExponentialExplorationDecay(ExplorationDecay):
     """Exponential exploration decay"""
 
-    def __init__(self, config: LearningConfig, total_steps: int) -> None:
+    def __init__(self, config: DecisionConfig, total_steps: int) -> None:
         super().__init__(config=config, total_steps=total_steps)
 
         # Maximal difference between current and minimum values of epsilon for stopping decay

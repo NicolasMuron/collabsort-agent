@@ -5,6 +5,7 @@ Unit tests for training.
 from gym_collabsort.config import Config as EnvConfig
 
 from collabsort_agent.config import Config, load_cfg, save_cfg
+from collabsort_agent.decision import Config as DecisionConfig
 from collabsort_agent.learning import Config as LearningConfig
 from collabsort_agent.memory import Config as MemoryConfig
 from collabsort_agent.perception import Config as PerceptionConfig
@@ -20,7 +21,8 @@ def test_random_agent() -> None:
             perception=PerceptionConfig(),
             memory=MemoryConfig(),
             # epsilon = 1 => always explore randomly
-            learning=LearningConfig(epsilon_start=1, epsilon_min=1),
+            decision=DecisionConfig(epsilon_start=1, epsilon_min=1),
+            learning=LearningConfig(),
             n_episodes=10,
             n_steps_episode=100,
             log_events=False,
@@ -36,6 +38,7 @@ def test_save_load_config(tmp_path) -> None:
         env=EnvConfig(),
         perception=PerceptionConfig(),
         memory=MemoryConfig(),
+        decision=DecisionConfig(),
         learning=LearningConfig(),
     )
 
