@@ -5,8 +5,12 @@ Unit tests for the DQN algorithm.
 import numpy as np
 import torch
 
+from collabsort_agent.decision import Config as DecisionConfig
 from collabsort_agent.learning import Config as LearningConfig
 from collabsort_agent.learning.dqn import DQN
+from collabsort_agent.learning.q_learning import Qlearning
+from collabsort_agent.metacognition import Config as MetaConfig
+from collabsort_agent.metacognition import MetaController
 
 
 def test_dqn() -> None:
@@ -24,7 +28,7 @@ def test_dqn() -> None:
     )
 
     q_values = dqn.get_action_values(state=initial_state)
-    assert q_values.shape == (1, n_actions)
+    assert q_values.shape == (n_actions,)
 
     dqn.update_action_values(
         state=initial_state, action=0, reward=1, next_state=initial_state * 1.1
@@ -106,3 +110,25 @@ def test_dqn_save_and_load(tmp_path) -> None:
         assert torch.equal(p_saved, p_restored)
 
     assert restored.optimizer.param_groups[0]["lr"] == saved_lr
+
+
+def test_q_learning() -> None:
+    """Test Q-Learning"""
+
+    # Learning hyperparameters
+    learning_cfg = LearningConfig()
+    initial_state = np.array([0, 2, -1, 7, 0.5], dtype=np.float32)
+    n_actions = 4
+
+    ql = Qlearning(
+        config=learning_cfg,
+        n_actions=n_actions,
+        meta_ctrl=MetaController(
+            config=MetaConfig(),
+            learning_cfg=learning_cfg,
+            decision_cfg=DecisionConfig(),
+        ),
+    )
+
+    q_values = ql.get_action_values(state=initial_state)
+    assert q_values.shape == (n_actions,)

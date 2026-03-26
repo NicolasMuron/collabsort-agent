@@ -24,17 +24,13 @@ def test_linear_explo_decay() -> None:
 
     # Assert epsilon value at middle of decay
     assert (
-        lin_decay.get_epsilon(
-            training_step=int(total_steps * config.exploration_decay_span) // 2
-        )
+        lin_decay.get_epsilon(training_step=int(total_steps * config.decay_span) // 2)
         == config.epsilon_min + (config.epsilon_start - config.epsilon_min) / 2
     )
 
     # Assert epsilon value at end of decay
     assert_almost_equal(
-        lin_decay.get_epsilon(
-            training_step=int(total_steps * config.exploration_decay_span)
-        ),
+        lin_decay.get_epsilon(training_step=int(total_steps * config.decay_span)),
         config.epsilon_min,
     )
 
@@ -57,9 +53,7 @@ def test_exponential_explo_decay() -> None:
 
     # Assert epsilon value at end of decay
     assert_almost_equal(
-        exp_decay.get_epsilon(
-            training_step=int(total_steps * config.exploration_decay_span)
-        ),
+        exp_decay.get_epsilon(training_step=int(total_steps * config.decay_span)),
         config.epsilon_min,
         decimal=2,
     )
