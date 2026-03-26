@@ -29,7 +29,16 @@ class Config:
     exploration_decay: Literal["lin", "exp"] = "lin"
 
     # Percentage of training time during which exploration probability is decayed
-    exploration_decay_span: float = 0.5
+    decay_span: float = 0.5
+
+    # Initial value for decision threshold (adjusted via metacognition)
+    threshold_start: float = 1.0
+
+    # Minimum decision threshold
+    threshold_min: float = 0.2
+
+    # Maximum decision threshold
+    threshold_max: float = 3.0
 
 
 class Deliberator(ABC):
