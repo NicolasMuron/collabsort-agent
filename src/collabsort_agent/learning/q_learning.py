@@ -51,7 +51,7 @@ class Qlearning(ActionValueEstimator):
         # δ = r + γ · max_a' Q(s', a') − Q(s, a)
         q_target = reward if done else reward + self.config.gamma * q_next_max
         td_error = q_target - q_current
-        self.losses.append(td_error)
+        self.losses.append(abs(td_error))
 
         key = self._make_key(state)
         self._table[key][action] += self.meta_ctrl.learning_rate * td_error
@@ -59,7 +59,7 @@ class Qlearning(ActionValueEstimator):
     def _make_key(self, state: np.ndarray) -> tuple:
         """Convert a state vector to a hashable dictionary key."""
 
-        return tuple(state.ravel().astype(int))
+        return tuple(state.ravel().tolist())
 
     def save_state(self, dir: str) -> None:
         """Save the estimator state to disk"""

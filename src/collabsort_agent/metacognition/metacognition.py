@@ -37,6 +37,7 @@ class MetaController:
 
         self.learning_rate = learning_cfg.lr_start
         self.decision_threshold = decision_cfg.threshold_start
+        self.confidence_ema = config.confidence_target  # warm-start at target
 
     def update_hyperparameters(self, confidence: float, reaction_time: float) -> None:
         """Update decision and learning hyperparameters based on decision metrics"""
