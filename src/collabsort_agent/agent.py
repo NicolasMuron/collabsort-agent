@@ -4,7 +4,7 @@ Agent definitions.
 
 import numpy as np
 from gym_collabsort.config import Action
-from torch.utils.tensorboard.writer import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 
 from collabsort_agent.decision import Deliberator
 from collabsort_agent.memory import Memory

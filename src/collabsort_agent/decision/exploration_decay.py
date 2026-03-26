@@ -16,7 +16,7 @@ class ExplorationDecay(ABC):
         self.config = config
 
         # Number of steps during which exploration probability is decayed
-        self.decay_steps: int = int(total_steps * self.config.exploration_decay_span)
+        self.decay_steps: int = int(total_steps * self.config.decay_span)
 
     def get_epsilon(self, training_step: int) -> float:
         """Return the exploration probability epsilon"""

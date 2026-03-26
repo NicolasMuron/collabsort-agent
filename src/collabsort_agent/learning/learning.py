@@ -4,10 +4,11 @@ Common definitions for learning algorithms.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from statistics import mean
 from typing import Literal
 
 import numpy as np
-from torch.utils.tensorboard.writer import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 
 
 @dataclass
@@ -15,13 +16,22 @@ class Config:
     """Learning configuration"""
 
     # Learning algorithm to use
-    algorithm: Literal["dqn"] = "dqn"
+    algorithm: Literal["ql", "dqn"] = "dqn"
 
     # Discount factor for Temporal-Difference algorithms
     gamma: float = 0.99
 
     # Learning rate for gradient descent
     lr: float = 1e-3
+
+    # Initial value for variable learning rate (adjusted via metacognition)
+    lr_start: float = 0.1
+
+    # Minimum variable learning rate
+    lr_min: float = 0.01
+
+    # Maximum variable learning rate
+    lr_max: float = 0.5
 
     # Batch size for sampling from replay buffer
     batch_size: int = 64
@@ -31,6 +41,9 @@ class Config:
 
     # Interval in learning steps to copy online weights to target network.
     target_network_sync_freq: int = 500
+
+    # Initial Q-Value
+    q_start: float = 0
 
 
 class ActionValueEstimator(ABC):
@@ -43,6 +56,12 @@ class ActionValueEstimator(ABC):
     ) -> None:
         self.config = config
         self.n_actions = n_actions
+
+        # Recorded loss values (used for logging)
+        self.losses: list[float] = []
+
+        # Average Q-values (used for logging)
+        self.mean_q_values: list[float] = []
 
     @abstractmethod
     def get_action_values(self, state: np.ndarray) -> np.ndarray:
@@ -59,9 +78,21 @@ class ActionValueEstimator(ABC):
     ):
         """Update action values after an action was taken"""
 
-    @abstractmethod
     def log_episode(self, logger: SummaryWriter, episode: int) -> None:
-        """Log information after an episode"""
+        logger.add_scalar(
+            tag="learning/mean_td_error",
+            scalar_value=mean(self.losses),
+            global_step=episode,
+        )
+        logger.add_scalar(
+            tag="learning/mean_q_value",
+            scalar_value=mean(self.mean_q_values),
+            global_step=episode,
+        )
+
+        # Reset episode data
+        self.losses.clear()
+        self.mean_q_values.clear()
 
     @abstractmethod
     def save_state(self, dir: str) -> None:

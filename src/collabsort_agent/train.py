@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import gymnasium as gym
 import tyro
 from gym_collabsort.config import Action
-from torch.utils.tensorboard.writer import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import trange
 
 from collabsort_agent.agent import Agent
@@ -19,7 +19,9 @@ from collabsort_agent.decision.exploration_decay import (
     LinearExplorationDecay,
 )
 from collabsort_agent.learning.dqn import DQN
+from collabsort_agent.learning.q_learning import Qlearning
 from collabsort_agent.memory import Memory
+from collabsort_agent.metacognition import MetaController
 from collabsort_agent.perception import Perceiver
 
 
@@ -42,12 +44,21 @@ def create_agent(config: Config, sample_obs: dict) -> Agent:
         sensory_state=sample_sensory_state
     )
 
+    # Initialize metacognition
+    meta_ctrl = MetaController(
+        config=config.meta, learning_cfg=config.learning, decision_cfg=config.decision
+    )
+
     # Compute decision hyperparameters
     extended_state_size = len(sample_extended_state)
     n_actions = len(Action) + len(memory.get_actions())
 
     # Initialize learning
-    if config.learning.algorithm == "dqn":
+    if config.learning.algorithm == "ql":
+        estimator = Qlearning(
+            config=config.learning, n_actions=n_actions, meta_ctrl=meta_ctrl
+        )
+    elif config.learning.algorithm == "dqn":
         estimator = DQN(
             config=config.learning,
             n_actions=n_actions,
@@ -111,7 +122,9 @@ class EpisodeMetrics:
 
         if logger is not None:
             logger.add_scalar(
-                tag="training/reward", scalar_value=self.reward, global_step=episode
+                tag="training/cumulated_reward",
+                scalar_value=self.reward,
+                global_step=episode,
             )
             logger.add_scalar(
                 tag="training/collisions",
@@ -134,7 +147,7 @@ def train(config: Config) -> None:
     """Train an agent"""
 
     # Create directory path for training output
-    train_dir: str = f"runs/train_{config.decision.algorithm}_{config.learning.algorithm}_{int(time.time())}"
+    train_dir: str = f"runs/train_{int(time.time())}_{config.decision.algorithm}_{config.learning.algorithm}"
 
     logger = None
     if config.log_events:
