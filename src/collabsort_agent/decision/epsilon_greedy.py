@@ -43,11 +43,11 @@ class EpsilonGreedy(Deliberator):
 
         # With probability (1-epsilon): exploit (greedily choose the best known action)
         action_values = self.estimator.get_action_values(state=state)
-        return int(np.argmax(action_values, 1).item())
+        return int(np.argmax(action_values).item())
 
     def log_episode(self, logger: SummaryWriter, episode: int) -> None:
         logger.add_scalar(
-            tag="decision-making/exploration_probability",
+            tag="decision/exploration_probability",
             scalar_value=self.epsilon,
             global_step=episode,
         )

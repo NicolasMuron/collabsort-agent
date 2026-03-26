@@ -5,13 +5,11 @@ Deep Q-Learning algorithm.
 import random
 from collections import deque
 from pathlib import Path
-from statistics import mean
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.tensorboard.writer import SummaryWriter
 
 from collabsort_agent.learning import ActionValueEstimator
 from collabsort_agent.learning import Config as LearningConfig
@@ -91,12 +89,6 @@ class DQN(ActionValueEstimator):
         # Step counter used to decide when to sync the target network
         self.learning_step: int = 0
 
-        # Recorded loss values (used for logging)
-        self.losses: list[float] = []
-
-        # Average Q-values (used for logging)
-        self.mean_q_values: list[float] = []
-
     def get_action_values(self, state: np.ndarray) -> np.ndarray:
         # Convert NumPy array to PyTorch tensor
         state_tensor = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
@@ -106,7 +98,7 @@ class DQN(ActionValueEstimator):
             q_values = self.q_network(state_tensor)
 
         # Convert PyTorch tensor to NumPy array
-        return q_values.detach().cpu().numpy()
+        return q_values[0].detach().cpu().numpy()
 
     def update_action_values(
         self,
@@ -189,22 +181,6 @@ class DQN(ActionValueEstimator):
         self.learning_step += 1
         if self.learning_step % self.config.target_network_sync_freq == 0:
             self.target_network.load_state_dict(self.q_network.state_dict())
-
-    def log_episode(self, logger: SummaryWriter, episode: int) -> None:
-        logger.add_scalar(
-            tag="learning/td_loss",
-            scalar_value=mean(self.losses),
-            global_step=episode,
-        )
-        logger.add_scalar(
-            tag="learning/q_values",
-            scalar_value=mean(self.mean_q_values),
-            global_step=episode,
-        )
-
-        # Reset episode data
-        self.losses.clear()
-        self.mean_q_values.clear()
 
     def save_state(self, dir: str) -> None:
         Path(dir).mkdir(parents=True, exist_ok=True)
