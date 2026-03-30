@@ -3,6 +3,9 @@ Definitions for metacognition algorithms.
 """
 
 from dataclasses import dataclass
+from statistics import mean
+
+from torch.utils.tensorboard import SummaryWriter
 
 from collabsort_agent.decision import Config as DecisionConfig
 from collabsort_agent.learning import Config as LearningConfig
@@ -39,6 +42,8 @@ class MetaController:
         self.decision_threshold = decision_cfg.threshold_start
         self.confidence_ema = config.confidence_target  # warm-start at target
 
+        self.confidences: list[float] = []
+
     def update_hyperparameters(self, confidence: float, reaction_time: float) -> None:
         """Update decision and learning hyperparameters based on decision metrics"""
 
@@ -47,6 +52,7 @@ class MetaController:
             self.config.ema_decay * self.confidence_ema
             + (1.0 - self.config.ema_decay) * confidence
         )
+        self.confidences.append(self.confidence_ema)
 
         error = self.confidence_ema - self.config.confidence_target
 
@@ -69,3 +75,13 @@ class MetaController:
                 min(self.learning_cfg.lr_max, self.learning_rate),
             )
         )
+
+    def log_episode(self, logger: SummaryWriter, episode: int) -> None:
+        logger.add_scalar(
+            tag="metacognition/mean_confidence",
+            scalar_value=mean(self.confidences),
+            global_step=episode,
+        )
+
+        # Reset episode data
+        self.confidences.clear()

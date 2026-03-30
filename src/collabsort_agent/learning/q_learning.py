@@ -5,6 +5,7 @@ Definitions for Q-Learning algorithm.
 from collections import defaultdict
 
 import numpy as np
+from torch.utils.tensorboard import SummaryWriter
 
 from collabsort_agent.learning import ActionValueEstimator
 from collabsort_agent.learning import Config as LearningConfig
@@ -60,6 +61,15 @@ class Qlearning(ActionValueEstimator):
         """Convert a state vector to a hashable dictionary key."""
 
         return tuple(state.ravel().tolist())
+
+    def log_episode(self, logger: SummaryWriter, episode: int) -> None:
+        super().log_episode(logger=logger, episode=episode)
+
+        logger.add_scalar(
+            tag="learning/learning_rate",
+            scalar_value=self.meta_ctrl.learning_rate,
+            global_step=episode,
+        )
 
     def save_state(self, dir: str) -> None:
         """Save the estimator state to disk"""

@@ -27,7 +27,12 @@ class Agent:
         # Newest action chosen by the agent
         self.current_action: Action | None = None
 
-    def act(self, obs: dict, training_step: int | None = None) -> Action:
+    def act(
+        self,
+        obs: dict,
+        training_step: int,
+        rng: np.random.Generator,
+    ) -> Action:
         """Select an action"""
 
         sensory_state = self.perceiver.get_sensory_state(obs=obs)
@@ -37,7 +42,9 @@ class Agent:
 
         self.current_action = Action(
             self.deliberator.choose_action(
-                state=extended_state, training_step=training_step
+                state=extended_state,
+                training_step=training_step,
+                rng=rng,
             )
         )
         return self.current_action

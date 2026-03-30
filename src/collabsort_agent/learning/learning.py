@@ -19,7 +19,7 @@ class Config:
     algorithm: Literal["ql", "dqn"] = "dqn"
 
     # Discount factor for Temporal-Difference algorithms
-    gamma: float = 0.99
+    gamma: float = 0.95
 
     # Learning rate for gradient descent
     lr: float = 1e-3

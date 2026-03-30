@@ -30,15 +30,17 @@ class EpsilonGreedy(Deliberator):
         # Current exploration probability (set on first choose_action call)
         self.epsilon: float = self.config.epsilon_start
 
-    def choose_action(self, state: np.ndarray, training_step: int | None) -> int:
-        if training_step is not None:
-            # Update exploration probability
-            self.epsilon = self.exploration_decay.get_epsilon(
-                training_step=training_step
-            )
+    def choose_action(
+        self,
+        state: np.ndarray,
+        training_step: int,
+        rng: np.random.Generator,
+    ) -> int:
+        # Update exploration probability
+        self.epsilon = self.exploration_decay.get_epsilon(training_step=training_step)
 
         # With probability epsilon: explore (choose a random action)
-        if np.random.random() < self.epsilon:
+        if rng.random() < self.epsilon:
             return int(np.random.randint(0, self.estimator.n_actions))
 
         # With probability (1-epsilon): exploit (greedily choose the best known action)

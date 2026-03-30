@@ -17,7 +17,7 @@ class Config:
     """Decision configuration"""
 
     # Deision algorithm to use
-    algorithm: Literal["eps"] = "eps"
+    algorithm: Literal["eps", "aard"] = "eps"
 
     # Starting exploration probability
     epsilon_start: float = 1
@@ -40,6 +40,9 @@ class Config:
     # Maximum decision threshold
     threshold_max: float = 3.0
 
+    # Standard deviation of diffusion noise
+    noise_std: float = 0.3
+
 
 class Deliberator(ABC):
     """Base class for decision-making algorithms."""
@@ -49,7 +52,12 @@ class Deliberator(ABC):
         self.estimator = estimator
 
     @abstractmethod
-    def choose_action(self, state: np.ndarray, training_step: int | None) -> int:
+    def choose_action(
+        self,
+        state: np.ndarray,
+        training_step: int,
+        rng: np.random.Generator,
+    ) -> int:
         """Choose the action to perform"""
 
     @abstractmethod

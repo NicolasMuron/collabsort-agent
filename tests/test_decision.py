@@ -14,7 +14,7 @@ from collabsort_agent.decision.exploration_decay import (
 def test_linear_explo_decay() -> None:
     """Test linear exploration decay"""
 
-    config = DecisionConfig(exploration_decay_span=0.6)
+    config = DecisionConfig(decay_span=0.6)
     total_steps = 1000
 
     lin_decay = LinearExplorationDecay(config=config, total_steps=total_steps)

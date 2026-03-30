@@ -13,6 +13,7 @@ from tqdm import trange
 
 from collabsort_agent.agent import Agent
 from collabsort_agent.config import Config, save_cfg
+from collabsort_agent.decision.ard import AARD
 from collabsort_agent.decision.epsilon_greedy import EpsilonGreedy
 from collabsort_agent.decision.exploration_decay import (
     ExponentialExplorationDecay,
@@ -87,6 +88,10 @@ def create_agent(config: Config, sample_obs: dict) -> Agent:
             config=config.decision,
             estimator=estimator,
             exploration_decay=exploration_decay,
+        )
+    elif config.decision.algorithm == "aard":
+        deliberator = AARD(
+            config=config.decision, estimator=estimator, meta_ctrl=meta_ctrl
         )
     else:
         raise Exception(f"Unrecognized decision algorithm: {config.decision.algorithm}")
@@ -175,7 +180,11 @@ def train(config: Config) -> None:
         # Episode loop
         while not ep_over:
             # Agent chooses an action
-            action: Action = agent.act(obs=obs, training_step=training_step)
+            action: Action = agent.act(
+                obs=obs,
+                training_step=training_step,
+                rng=env.np_random,
+            )
 
             # Take action and observe result
             next_obs, reward, terminated, truncated, info = env.step(action=action)
