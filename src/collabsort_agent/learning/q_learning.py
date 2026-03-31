@@ -55,7 +55,7 @@ class Qlearning(ActionValueEstimator):
         self.losses.append(abs(td_error))
 
         key = self._make_key(state)
-        self._table[key][action] += self.meta_ctrl.learning_rate * td_error
+        self._table[key][action] += self.meta_ctrl.alpha * td_error
 
     def _make_key(self, state: np.ndarray) -> tuple:
         """Convert a state vector to a hashable dictionary key."""
@@ -67,7 +67,7 @@ class Qlearning(ActionValueEstimator):
 
         logger.add_scalar(
             tag="learning/learning_rate",
-            scalar_value=self.meta_ctrl.learning_rate,
+            scalar_value=self.meta_ctrl.alpha,
             global_step=episode,
         )
 

@@ -16,16 +16,16 @@ class Config:
     """Metacognition configuration"""
 
     # Step size for learning rate adjustment
-    lr_rate: float = 0.05
+    alpha_rate: float = 0.05
 
     # Step size for decision threshold adjustment
-    threshold_rate: float = 0.05
+    theta_rate: float = 0.05
 
     # Desired confidence level [0..1]
     confidence_target: float = 0.4
 
     # Exponential moving average decay for smoothing confidence
-    ema_decay: float = 0.9
+    ema_decay: float = 0.1
 
 
 class MetaController:
@@ -38,8 +38,8 @@ class MetaController:
         self.learning_cfg = learning_cfg
         self.decision_cfg = decision_cfg
 
-        self.learning_rate = learning_cfg.lr_start
-        self.decision_threshold = decision_cfg.threshold_start
+        self.alpha = learning_cfg.alpha_start
+        self.theta = decision_cfg.theta_start
         self.confidence_ema = config.confidence_target  # warm-start at target
 
         self.confidences: list[float] = []
@@ -58,30 +58,31 @@ class MetaController:
 
         # Decision threshold: shrink when over-confident (faster decisions),
         # grow when under-confident (more deliberation)
-        self.decision_threshold -= self.config.threshold_rate * error
-        self.decision_threshold = float(
+        self.theta -= self.config.theta_rate * error
+        self.theta = float(
             max(
-                self.decision_cfg.threshold_min,
-                min(self.decision_cfg.threshold_max, self.decision_threshold),
+                self.decision_cfg.theta_min,
+                min(self.decision_cfg.theta_max, self.theta),
             )
         )
 
         # Learning rate: raise when under-confident (more plastic),
         # lower when over-confident (more stable)
-        self.learning_rate += self.config.lr_rate * (-error)
-        self.learning_rate = float(
+        self.alpha += self.config.alpha_rate * (-error)
+        self.alpha = float(
             max(
-                self.learning_cfg.lr_min,
-                min(self.learning_cfg.lr_max, self.learning_rate),
+                self.learning_cfg.alpha_min,
+                min(self.learning_cfg.alpha_max, self.alpha),
             )
         )
 
     def log_episode(self, logger: SummaryWriter, episode: int) -> None:
-        logger.add_scalar(
-            tag="metacognition/mean_confidence",
-            scalar_value=mean(self.confidences),
-            global_step=episode,
-        )
+        if self.confidences:
+            logger.add_scalar(
+                tag="metacognition/mean_confidence",
+                scalar_value=mean(self.confidences),
+                global_step=episode,
+            )
 
-        # Reset episode data
-        self.confidences.clear()
+            # Reset episode data
+            self.confidences.clear()

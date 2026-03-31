@@ -25,13 +25,13 @@ class Config:
     lr: float = 1e-3
 
     # Initial value for variable learning rate (adjusted via metacognition)
-    lr_start: float = 0.1
+    alpha_start: float = 0.1
 
     # Minimum variable learning rate
-    lr_min: float = 0.01
+    alpha_min: float = 0.01
 
     # Maximum variable learning rate
-    lr_max: float = 0.5
+    alpha_max: float = 0.5
 
     # Batch size for sampling from replay buffer
     batch_size: int = 64
