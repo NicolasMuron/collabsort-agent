@@ -13,7 +13,7 @@ from tqdm import trange
 
 from collabsort_agent.agent import Agent
 from collabsort_agent.config import Config, save_cfg
-from collabsort_agent.decision.ard import AARD
+from collabsort_agent.decision.ard import ARD
 from collabsort_agent.decision.epsilon_greedy import EpsilonGreedy
 from collabsort_agent.decision.exploration_decay import (
     ExponentialExplorationDecay,
@@ -89,8 +89,8 @@ def create_agent(config: Config, sample_obs: dict) -> Agent:
             estimator=estimator,
             exploration_decay=exploration_decay,
         )
-    elif config.decision.algorithm == "aard":
-        deliberator = AARD(
+    elif config.decision.algorithm == "ard":
+        deliberator = ARD(
             config=config.decision, estimator=estimator, meta_ctrl=meta_ctrl
         )
     else:

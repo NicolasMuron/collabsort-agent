@@ -17,7 +17,9 @@ class Config:
     """Decision configuration"""
 
     # Deision algorithm to use
-    algorithm: Literal["eps", "aard"] = "eps"
+    algorithm: Literal["eps", "ard"] = "eps"
+
+    # ---------- Exploration decay ----------
 
     # Starting exploration probability
     epsilon_start: float = 1
@@ -31,17 +33,34 @@ class Config:
     # Percentage of training time during which exploration probability is decayed
     decay_span: float = 0.5
 
+    # ---------- Advantage Racing Diffusion ----------
+
     # Initial value for decision threshold (adjusted via metacognition)
-    threshold_start: float = 1.0
+    theta_start: float = 1.0
 
     # Minimum decision threshold
-    threshold_min: float = 0.2
+    theta_min: float = 0.2
 
     # Maximum decision threshold
-    threshold_max: float = 3.0
+    theta_max: float = 3.0
 
-    # Standard deviation of diffusion noise
+    # Weight of the advantage (Q_i - Q_j) term
+    w_d: float = 1.0
+
+    # Weight of the sum (Q_i + Q_j) term
+    w_s: float = 1
+
+    # Urgency / baseline drift added to every accumulator
+    V_0: float = 0.1
+
+    # Standard deviation of diffusion noise (denoted s in Miletic2021 paper)
     noise_std: float = 0.3
+
+    # Safety cap on the inner accumulation loop
+    max_steps: int = 100
+
+    # Euler-Maruyama timestep
+    dt: float = 0.1
 
 
 class Deliberator(ABC):
