@@ -35,6 +35,9 @@ class Config:
 
     # ---------- Advantage Racing Diffusion ----------
 
+    # Rule for ending evidence accumulation and choosing an action
+    decision_rule: Literal["win-all"] = "win-all"
+
     # Initial value for decision threshold (adjusted via metacognition)
     theta_start: float = 1.0
 
@@ -48,34 +51,39 @@ class Config:
     w_d: float = 1.0
 
     # Weight of the sum (Q_i + Q_j) term
-    w_s: float = 1
+    w_s: float = 0.1
 
     # Urgency / baseline drift added to every accumulator
     V_0: float = 0.1
 
-    # Standard deviation of diffusion noise (denoted s in Miletic2021 paper)
-    noise_std: float = 0.3
+    # Mean of accumulation noise
+    noise_mean: float = 0.0
+
+    # Standard deviation of accumulation noise (denoted s in Miletic2021 paper)
+    noise_std: float = 0.03
 
     # Safety cap on the inner accumulation loop
     max_steps: int = 100
 
     # Euler-Maruyama timestep
-    dt: float = 0.1
+    dt: float = 0.01
 
 
 class Deliberator(ABC):
     """Base class for decision-making algorithms."""
 
-    def __init__(self, config: Config, estimator: ActionValueEstimator) -> None:
+    def __init__(
+        self, config: Config, estimator: ActionValueEstimator, rng: np.random.Generator
+    ) -> None:
         self.config = config
         self.estimator = estimator
+        self.rng = rng
 
     @abstractmethod
     def choose_action(
         self,
         state: np.ndarray,
         training_step: int,
-        rng: np.random.Generator,
     ) -> int:
         """Choose the action to perform"""
 

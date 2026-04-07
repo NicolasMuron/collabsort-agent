@@ -22,8 +22,9 @@ class EpsilonGreedy(Deliberator):
         config: DecisionConfig,
         estimator: ActionValueEstimator,
         exploration_decay: ExplorationDecay,
+        rng: np.random.Generator,
     ) -> None:
-        super().__init__(config=config, estimator=estimator)
+        super().__init__(config=config, estimator=estimator, rng=rng)
 
         self.exploration_decay = exploration_decay
 
@@ -34,13 +35,12 @@ class EpsilonGreedy(Deliberator):
         self,
         state: np.ndarray,
         training_step: int,
-        rng: np.random.Generator,
     ) -> int:
         # Update exploration probability
         self.epsilon = self.exploration_decay.get_epsilon(training_step=training_step)
 
         # With probability epsilon: explore (choose a random action)
-        if rng.random() < self.epsilon:
+        if self.rng.random() < self.epsilon:
             return int(np.random.randint(0, self.estimator.n_actions))
 
         # With probability (1-epsilon): exploit (greedily choose the best known action)

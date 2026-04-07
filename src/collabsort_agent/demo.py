@@ -28,7 +28,9 @@ def demo(train_dir: str) -> None:
     env = gym.make("CollabSort-v0", config=config.env)
 
     # Create agent and load its state from disk
-    agent = create_agent(config=config, sample_obs=env.observation_space.sample())
+    agent = create_agent(
+        config=config, sample_obs=env.observation_space.sample(), rng=env.np_random
+    )
     agent.load_state(dir=train_dir)
 
     # Reset environment
@@ -38,7 +40,7 @@ def demo(train_dir: str) -> None:
     # Episode loop
     while not ep_over:
         # Agent chooses an action
-        action: Action = agent.act(obs=obs)
+        action: Action = agent.act(obs=obs, training_step=0)
 
         # Take action and observe result
         next_obs, _, terminated, truncated, info = env.step(action=action)

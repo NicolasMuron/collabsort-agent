@@ -31,7 +31,6 @@ class Agent:
         self,
         obs: dict,
         training_step: int,
-        rng: np.random.Generator,
     ) -> Action:
         """Select an action"""
 
@@ -44,7 +43,6 @@ class Agent:
             self.deliberator.choose_action(
                 state=extended_state,
                 training_step=training_step,
-                rng=rng,
             )
         )
         return self.current_action

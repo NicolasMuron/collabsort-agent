@@ -6,6 +6,7 @@ import time
 from dataclasses import dataclass
 
 import gymnasium as gym
+import numpy as np
 import tyro
 from gym_collabsort.config import Action
 from torch.utils.tensorboard import SummaryWriter
@@ -14,6 +15,7 @@ from tqdm import trange
 from collabsort_agent.agent import Agent
 from collabsort_agent.config import Config, save_cfg
 from collabsort_agent.decision.ard import ARD
+from collabsort_agent.decision.decision_rule import WinAllRule
 from collabsort_agent.decision.epsilon_greedy import EpsilonGreedy
 from collabsort_agent.decision.exploration_decay import (
     ExponentialExplorationDecay,
@@ -26,7 +28,7 @@ from collabsort_agent.metacognition import MetaController
 from collabsort_agent.perception import Perceiver
 
 
-def create_agent(config: Config, sample_obs: dict) -> Agent:
+def create_agent(config: Config, sample_obs: dict, rng: np.random.Generator) -> Agent:
     """Create an agent with a specific configuration"""
 
     # Initialize perception
@@ -88,10 +90,18 @@ def create_agent(config: Config, sample_obs: dict) -> Agent:
             config=config.decision,
             estimator=estimator,
             exploration_decay=exploration_decay,
+            rng=rng,
         )
     elif config.decision.algorithm == "ard":
+        if config.decision.decision_rule == "win-all":
+            decision_rule = WinAllRule(rng=rng)
+
         deliberator = ARD(
-            config=config.decision, estimator=estimator, meta_ctrl=meta_ctrl
+            config=config.decision,
+            estimator=estimator,
+            decision_rule=decision_rule,
+            meta_ctrl=meta_ctrl,
+            rng=rng,
         )
     else:
         raise Exception(f"Unrecognized decision algorithm: {config.decision.algorithm}")
@@ -163,7 +173,9 @@ def train(config: Config) -> None:
     env = gym.make("CollabSort-v0", config=config.env)
 
     # Create agent
-    agent = create_agent(config=config, sample_obs=env.observation_space.sample())
+    agent = create_agent(
+        config=config, sample_obs=env.observation_space.sample(), rng=env.np_random
+    )
 
     # Training time step (= number of time steps since beginning of training)
     training_step: int = 0
@@ -183,7 +195,6 @@ def train(config: Config) -> None:
             action: Action = agent.act(
                 obs=obs,
                 training_step=training_step,
-                rng=env.np_random,
             )
 
             # Take action and observe result

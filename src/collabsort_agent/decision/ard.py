@@ -9,127 +9,196 @@ from torch.utils.tensorboard import SummaryWriter
 
 from collabsort_agent.decision import Config as DecisionConfig
 from collabsort_agent.decision import Deliberator
+from collabsort_agent.decision.decision_rule import DecisionRule
 from collabsort_agent.learning import ActionValueEstimator
 from collabsort_agent.metacognition import MetaController
 
 
 class ARD(Deliberator):
-    """Advantage Racing Diffusion algorithm."""
+    """
+    Advantage Racing Diffusion algorithm for decision making.
+
+    Translates Q-values into an action selection with associated confidence
+    via evidence accumulation. Each action has n-1 "advantage" accumulators.
+
+    Inspired by Miletic2021 https://elifesciences.org/articles/63055
+    """
 
     def __init__(
         self,
         config: DecisionConfig,
         estimator: ActionValueEstimator,
+        decision_rule: DecisionRule,
         meta_ctrl: MetaController,
+        rng: np.random.Generator,
     ) -> None:
-        super().__init__(config=config, estimator=estimator)
+        super().__init__(config=config, estimator=estimator, rng=rng)
 
+        self.decision_rule = decision_rule
         self.meta_ctrl = meta_ctrl
 
-        self._n_actions: int = 0
-        self._pairs: list[tuple[int, int]] = []
-        self._pro_idx: dict[int, list[int]] = {}
+        # Ordered list of (i,j) pairs of actions for 0 <= i,j < n_actions and i != j.
+        # Length = n_actions(n_actions - 1) = n_accumulators.
+        # Example for n_actions = 3: (0,1),(0,2),(1,0),(1,2),(2,0),(2,1).
+        self._action_pairs: list[tuple[int, int]] = list(
+            itertools.permutations(range(estimator.n_actions), 2)
+        )
+
+        # Dictionary of advantage ("pro-action") accumulators indexes for each action.
+        # Example for n_actions = 3: {0:[0,1], 1:[2,3], 2:[4,5]}.
+        # These indexes are used to access individual accumulators in self._evidence.
+        self._adv_accs: dict[int, list[int]] = {
+            i: [] for i in range(estimator.n_actions)
+        }
+        for k, (i, _) in enumerate(self._action_pairs):
+            self._adv_accs[i].append(k)
+
+        # Cumulated evidence for each accumulator during a decision. Shape: (n_accumulators,)
+        self._evidence = self._reset_evidence()
+
+        # History matrix of evidence values at each time step of a decision. Used for plotting/debugging.
+        # Each line stores all successive evidence values for one accumulator.
+        # Shape: (n_accumulators, n_decision_steps).
+        # Initialized as a 1D array. Each decision step will add a new column.
+        self._evidence_history = self._reset_evidence()
+
+    @property
+    def n_accumulators(self) -> int:
+        """Return the number of accumulators = n_actions(n_actions - 1)"""
+
+        return len(self._action_pairs)
 
     def choose_action(
         self,
         state: np.ndarray,
         training_step: int,
-        rng: np.random.Generator,
     ) -> int:
         """Choose the action to perform"""
 
         action_values = self.estimator.get_action_values(state=state)
 
-        n = len(action_values)
-        if n != self._n_actions:
-            self._build_pair_index(n)
-
-        if n == 1:
+        n_actions = len(action_values)
+        if n_actions == 1:
             return 0  # Only one possible action
 
-        # Mean drift rates, shape (n_pairs,)
-        v = self._drift_rates(action_values)
-        n_pairs = len(v)
-        noise_std = self.config.noise_std * np.sqrt(
-            self.config.dt
-        )  # if stochastic else 0.0
+        # Reset evidence and history
+        self._evidence = self._reset_evidence()
+        self._evidence_history = self._reset_evidence()
 
-        evidence = np.zeros(n_pairs, dtype=float)
-        action = -1
+        # Compute drift rates for all accumulators
+        drift_rates = self._compute_drift_rates(action_values)
+
+        chosen_action = -1
         rt = float(self.config.max_steps)
 
+        # Evidence accumulation loop
         for t in range(1, self.config.max_steps + 1):
-            # if stochastic:
-            evidence += v * self.config.dt + rng.normal(0.0, noise_std, size=n_pairs)
-            # else:
-            #     evidence += v * self.config.dt
-            np.clip(evidence, 0.0, None, out=evidence)  # absorbing lower bound
+            # Compute accumulation noise
+            noise = self.rng.normal(
+                loc=self.config.noise_mean,
+                scale=self.config.noise_std,
+                size=self.n_accumulators,
+            )
 
-            # Win-all check: action i wins when ALL its pro-i accumulators ≥ θ
-            crossed = evidence >= self.meta_ctrl.theta
-            winners = [i for i in range(n) if all(crossed[k] for k in self._pro_idx[i])]
+            # Accumulate evidence
+            self._evidence += drift_rates * self.config.dt + noise
 
-            if winners:
+            # Absorb lower bound
+            np.clip(
+                self._evidence,
+                a_min=0.0,
+                a_max=None,  # self.meta_ctrl.theta,
+                out=self._evidence,
+            )
+
+            # Add new evidence to history
+            self._evidence_history = np.c_[self._evidence_history, self._evidence]
+
+            winning_actions = self.decision_rule.get_winning_actions(
+                n_actions=n_actions,
+                evidence=self._evidence,
+                theta=self.meta_ctrl.theta,
+                adv_accs=self._adv_accs,
+            )
+
+            if winning_actions:
+                if len(winning_actions) > 1:
+                    # More than one action have seen all their advantage accumulators cross the threshold.
+                    # Select action whose slowest accumulator has highest value.
+                    min_winners_evidence = self._compute_min_evidence(
+                        actions=winning_actions
+                    )
+                    chosen_action = np.argmax(min_winners_evidence).item()
+
+                elif len(winning_actions) == 1:
+                    # Only one action has seen all its advantage accumulators cross the threshold
+                    chosen_action = winning_actions[0]
+
                 rt = float(t)
-                action = int(rng.choice(winners))  # if stochastic else winners[0]
-                # action = winners[0]
                 break
 
-        # Fallback: no action completed within max_steps — pick least incomplete
-        if action == -1:
-            completion = np.array(
-                [
-                    np.mean(evidence[self._pro_idx[i]] >= self.meta_ctrl.theta)
-                    for i in range(n)
-                ],
-                dtype=float,
-            )
-            action = (
-                int(rng.choice(np.where(completion == completion.max())[0]))
-                # if stochastic
-                # else int(np.argmax(completion))
-            )
-
-        # Confidence: 1 − runner-up completion ratio at decision time
-        completion = np.array(
-            [
-                np.mean(evidence[self._pro_idx[i]] >= self.meta_ctrl.theta)
-                for i in range(n)
-            ],
-            dtype=float,
+        min_actions_evidence = self._compute_min_evidence(
+            actions=list(range(n_actions))
         )
-        sorted_comp = np.sort(completion)[::-1]
-        runner_up = float(sorted_comp[1]) if n > 1 else 0.0
-        confidence = float(np.clip(1.0 - runner_up, 0.0, 1.0))
 
-        # self.meta_ctrl.update_hyperparameters(confidence=confidence, reaction_time=rt)
+        # Fallback: no action chosen within max_steps.
+        # Select action whose slowest accumulator has highest value.
+        if chosen_action == -1:
+            chosen_action = np.argmax(min_actions_evidence).item()
 
-        return action
+        # Compute second best action (non-winning action whose slowest accumulator has highest value)
+        min_actions_evidence[chosen_action] = 0.0
+        runnerup_action = np.argmax(min_actions_evidence).item()
 
-    def _build_pair_index(self, n_actions: int) -> None:
-        """Pre-compute ordered pair indices; called once per new n_actions."""
+        # Compute decision confidence and adjust hyperparameters
+        confidence = self._compute_confidence(
+            chosen_action=chosen_action, runnerup_action=runnerup_action
+        )
+        self.meta_ctrl.update_hyperparameters(confidence=confidence, reaction_time=rt)
 
-        self._n_actions = n_actions
-        self._pairs = list(itertools.permutations(range(n_actions), 2))
-        self._pro_idx = {i: [] for i in range(n_actions)}
-        for k, (i, _j) in enumerate(self._pairs):
-            self._pro_idx[i].append(k)
+        return chosen_action
 
-    def _drift_rates(self, q: np.ndarray) -> np.ndarray:
+    def _reset_evidence(self) -> np.ndarray:
+        """Reset evidence."""
+
+        return np.zeros((self.n_accumulators,), dtype=float)
+
+    def _compute_min_evidence(self, actions: list[int]) -> list[float]:
+        """Return the minimum value of all advantage accumulators for a list of actions."""
+
+        return [np.min(self._evidence[self._adv_accs[action]]) for action in actions]
+
+    def _compute_confidence(self, chosen_action: int, runnerup_action: int) -> float:
+        """Compute confidence as normlized distance between slowest accumulators of chosen and runner-up actions."""
+
+        min_evidence = self._compute_min_evidence(
+            actions=[chosen_action, runnerup_action]
+        )
+        return (min_evidence[0] - min_evidence[1]) / (self.meta_ctrl.theta + 1e-6)
+
+    def _compute_drift_rates(self, q_values: np.ndarray) -> np.ndarray:
         """
+        Return the drift rates for all accumulators. Shape: (n_accumulators,).
+
         v(i,j) = w_d*(Q_i - Q_j) + w_s*(Q_i + Q_j) + V0
-
-        Returns shape (n_pairs,) array.
         """
 
-        pairs_arr = np.array(self._pairs)  # (n_pairs, 2)
-        i_idx = pairs_arr[:, 0]
-        j_idx = pairs_arr[:, 1]
+        pairs = np.array(self._action_pairs)
+        i_idx = pairs[:, 0]
+        j_idx = pairs[:, 1]
         return (
-            self.config.w_d * (q[i_idx] - q[j_idx])
-            + self.config.w_s * (q[i_idx] + q[j_idx])
+            self.config.w_d * (q_values[i_idx] - q_values[j_idx])
+            + self.config.w_s * (q_values[i_idx] + q_values[j_idx])
             + self.config.V_0
         )
+
+    def _compute_drift_rates_dict(
+        self, q_values: np.ndarray
+    ) -> dict[tuple[int, int], float]:
+        """Return {(i,j): drift_rate}. Used for debugging."""
+
+        v = self._compute_drift_rates(q_values)
+        return {pair: float(v[k]) for k, pair in enumerate(self._action_pairs)}
 
     def log_episode(self, logger: SummaryWriter, episode: int) -> None:
         """Log information after an episode"""
@@ -142,11 +211,9 @@ class ARD(Deliberator):
         self.meta_ctrl.log_episode(logger=logger, episode=episode)
 
     def save_state(self, dir: str) -> None:
-        """Save the deliberator state to disk"""
-
         # TODO save state for ARD
+        pass
 
     def load_state(self, dir: str) -> None:
-        """Load a previously saved deliberator state from disk"""
-
         # TODO load state for ARD
+        pass
