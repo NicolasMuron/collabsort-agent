@@ -44,14 +44,14 @@ class dueling_Network(nn.Module):
         # Value stream
         self.value_stream = nn.Sequential(
             nn.Linear(100, 50),
-            nn.Tanh(),
+            nn.GELU(),
             nn.Linear(50, 1)  # Output is a single value for the state
         )
 
         # Advantage stream
         self.advantage_stream = nn.Sequential(
             nn.Linear(100, 50),
-            nn.Tanh(),
+            nn.GELU(),
             nn.Linear(50, action_size)  # Output is an advantage for each action
         )
 
