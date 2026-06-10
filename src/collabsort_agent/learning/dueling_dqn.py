@@ -44,14 +44,14 @@ class dueling_Network(nn.Module):
         # Value stream
         self.value_stream = nn.Sequential(
             nn.Linear(100, 50),
-            nn.ReLU(),
+            nn.Tanh(),
             nn.Linear(50, 1)  # Output is a single value for the state
         )
 
         # Advantage stream
         self.advantage_stream = nn.Sequential(
             nn.Linear(100, 50),
-            nn.ReLU(),
+            nn.Tanh(),
             nn.Linear(50, action_size)  # Output is an advantage for each action
         )
 
@@ -61,7 +61,7 @@ class dueling_Network(nn.Module):
         advantages = self.advantage_stream(features)
 
         # Combine value and advantages to get Q-values
-        q_values = value + (advantages - advantages.max(dim=1, keepdim=True)[0])
+        q_values = value + (advantages - advantages.mean(dim=1, keepdim=True)[0])
         if return_components:
             return q_values, value, advantages
         return q_values
