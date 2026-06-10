@@ -75,7 +75,19 @@ def create_agent(config: Config, sample_obs: dict, rng: np.random.Generator) -> 
             config=config.learning,
             n_actions=n_actions,
             state_size=extended_state_size,
+        )    
+    elif config.learning.algorithm == "double_dqn":
+        estimator = DDQN(
+            config=config.learning,
+            n_actions=n_actions,
+            state_size=extended_state_size,
         )
+    elif config.learning.algorithm == "dd_dqn":
+        estimator = DD_DQN(
+            config=config.learning,
+            n_actions=n_actions,
+            state_size=extended_state_size,
+        )  
     else:
         raise Exception(f"Unrecognized learning algorithm: {config.learning.algorithm}")
 
