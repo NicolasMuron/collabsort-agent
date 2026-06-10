@@ -21,6 +21,7 @@ from collabsort_agent.decision.exploration_decay import (
     ExponentialExplorationDecay,
     LinearExplorationDecay,
 )
+from collabsort_agent.learning.dd_dqn import DD_DQN
 from collabsort_agent.learning.double_dqn import DDQN
 from collabsort_agent.learning.dueling_dqn import DuelingDQN
 from collabsort_agent.learning.dqn import DQN
