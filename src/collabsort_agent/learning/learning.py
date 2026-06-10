@@ -89,27 +89,10 @@ class ActionValueEstimator(ABC):
             scalar_value=mean(self.mean_q_values),
             global_step=episode,
         )     
-        # --- TENSORBOARD : AVANTAGES QUAND V EST FAIBLE ---
-        # On vérifie si l'action 0 a enregistré des données ce tour-ci
-        if hasattr(self, 'low_v_advantages'):
-            if len(self.low_v_gaps) > 0 and len(self.high_v_gaps) > 0:
-                mean_low = sum(self.low_v_gaps) / len(self.low_v_gaps)
-                mean_high = sum(self.high_v_gaps) / len(self.high_v_gaps)
-                
-                logger.add_scalars(
-                    "Action_gap_V",
-                    {
-                        "Low_V": mean_low,
-                        "High_V": mean_high
-                    },
-                    episode
-                )
 
         # Reset episode data
         self.losses.clear()
         self.mean_q_values.clear()
-        self.low_v_gaps.clear()
-        self.high_v_gaps.clear()
 
     @abstractmethod
     def save_state(self, dir: str) -> None:

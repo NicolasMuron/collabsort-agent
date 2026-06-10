@@ -55,15 +55,13 @@ class dueling_Network(nn.Module):
             nn.Linear(50, action_size)  # Output is an advantage for each action
         )
 
-    def forward(self, state: torch.Tensor, return_components: bool = False) -> torch.Tensor:
+    def forward(self, state: torch.Tensor) -> torch.Tensor:
         features = self.feature_layer(state)
         value = self.value_stream(features)
         advantages = self.advantage_stream(features)
 
         # Combine value and advantages to get Q-values
         q_values = value + (advantages - advantages.mean(dim=1, keepdim=True))
-        if return_components:
-            return q_values, value, advantages
         return q_values
     
 class DuelingDQN(ActionValueEstimator):
@@ -97,10 +95,6 @@ class DuelingDQN(ActionValueEstimator):
 
         # Step counter used to decide when to sync the target network
         self.learning_step: int = 0
-        
-        # --- NOUVELLES LISTES POUR L'ANALYSE DUELING ---
-        self.low_v_gaps: list[float] = []
-        self.high_v_gaps: list[float] = []
         
     
     def get_action_values(self, state: np.ndarray) -> np.ndarray:
@@ -158,44 +152,9 @@ class DuelingDQN(ActionValueEstimator):
         dones = torch.tensor(dones, dtype=torch.float32, device=self.device)
         
         # Compute action values for the current states
-        q_values_all, values, advantages = self.q_network(states, return_components=True)
-        
-        q_values = q_values_all.gather(1, actions).squeeze(1)
+        q_values = self.q_network(states).gather(1, actions).squeeze(1)
         self.mean_q_values.append(torch.mean(q_values).item())
         
-        with torch.no_grad():
-            # Création des masques Booléens (taille du batch)
-            # v_values a la forme (batch_size, 1), on le squeeze pour avoir (batch_size,)
-            v_s = values.squeeze(1)
-    
-            # 1. On calcule la moyenne et l'écart-type du batch actuel
-            batch_mean_v = v_s.mean()
-            batch_std_v = v_s.std()
-            
-            # On ajoute une sécurité (1e-8) pour éviter une division par zéro si le batch est uniforme
-            if batch_std_v > 1e-8:
-                # On centre et on réduit : v_normalized aura une moyenne de 0 et un std de 1
-                v_normalized = (v_s - batch_mean_v) / batch_std_v
-            else:
-                # Si le batch est plat, on se contente de centrer
-                v_normalized = v_s - batch_mean_v
-
-            # 2. Les masques se basent maintenant sur cette distribution parfaitement équitable
-            # 0.0 correspond exactement à la moyenne parfaite de ce batch standardisé
-            low_v_mask = (v_normalized < 0.0)
-            high_v_mask = (v_normalized >= 0.0)
-            
-            if low_v_mask.any():
-                adv_low = advantages[low_v_mask]  # (n_states, n_actions)
-                top2 = torch.topk(adv_low, k=2, dim=1).values
-                gap = (top2[:, 0] - top2[:, 1]).mean().item()
-                self.low_v_gaps.append(gap)
-                    
-            if high_v_mask.any():
-                adv_high = advantages[high_v_mask]
-                top2 = torch.topk(adv_high, k=2, dim=1).values
-                gap = (top2[:, 0] - top2[:, 1]).mean().item()
-                self.high_v_gaps.append(gap)
         
         # Using target_network (not q_network) to compute Q-targets.
         with torch.no_grad():
