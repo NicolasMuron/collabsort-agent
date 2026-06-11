@@ -39,13 +39,13 @@ class Config:
     decision_rule: Literal["win-all"] = "win-all"
 
     # Initial value for decision threshold (adjusted via metacognition)
-    theta_start: float = 3.0
+    theta_start: float = 1.0
 
     # Minimum decision threshold
     theta_min: float = 0.2
 
     # Maximum decision threshold
-    theta_max: float = 15.0
+    theta_max: float = 3.0
 
     # Weight of the advantage (Q_i - Q_j) term
     w_d: float = 1.0

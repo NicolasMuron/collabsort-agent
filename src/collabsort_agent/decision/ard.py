@@ -174,6 +174,9 @@ class ARD(Deliberator):
         min_evidence = self._compute_min_evidence(
             actions=[chosen_action, runnerup_action]
         )
+        print(f"DEBUG ARD - Min evidence: {min_evidence}, Theta actuel: {self.meta_ctrl.theta}")
+        confidence_calculee = (min_evidence[0] - min_evidence[1]) / (self.meta_ctrl.theta + 1e-6)
+        print(f"DEBUG ARD - Confiance calculée: {confidence_calculee}")
         return (min_evidence[0] - min_evidence[1]) / (self.meta_ctrl.theta + 1e-6)
 
     def _compute_drift_rates(self, q_values: np.ndarray) -> np.ndarray:
