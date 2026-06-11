@@ -43,16 +43,16 @@ class dueling_Network(nn.Module):
 
         # Value stream
         self.value_stream = nn.Sequential(
-            nn.Linear(100, 30),
+            nn.Linear(100, 50),
             nn.ReLU(),
-            nn.Linear(30, 1)  # Output is a single value for the state
+            nn.Linear(50, 1)  # Output is a single value for the state
         )
 
         # Advantage stream
         self.advantage_stream = nn.Sequential(
-            nn.Linear(100, 70),
+            nn.Linear(100, 50),
             nn.ReLU(),
-            nn.Linear(70, action_size)  # Output is an advantage for each action
+            nn.Linear(50, action_size)  # Output is an advantage for each action
         )
 
     def forward(self, state: torch.Tensor, return_components: bool = False) -> torch.Tensor:

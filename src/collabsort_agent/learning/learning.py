@@ -16,7 +16,7 @@ class Config:
     """Learning configuration"""
 
     # Learning algorithm to use
-    algorithm: Literal["ql", "dqn", "dueling_dqn", "double_dqn", "dd_dqn"] = "dueling_dqn"
+    algorithm: Literal["ql", "dqn", "dueling_dqn", "double_dqn", "dd_dqn"] = "double_dqn"
 
     # Discount factor for Temporal-Difference algorithms
     gamma: float = 0.95
@@ -108,8 +108,9 @@ class ActionValueEstimator(ABC):
         # Reset episode data
         self.losses.clear()
         self.mean_q_values.clear()
-        self.low_v_gaps.clear()
-        self.high_v_gaps.clear()
+        if hasattr(self, 'low_v_advantages'):
+            self.low_v_gaps.clear()
+            self.high_v_gaps.clear()
 
     @abstractmethod
     def save_state(self, dir: str) -> None:
