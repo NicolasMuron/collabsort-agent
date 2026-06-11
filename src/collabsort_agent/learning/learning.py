@@ -16,7 +16,7 @@ class Config:
     """Learning configuration"""
 
     # Learning algorithm to use
-    algorithm: Literal["ql", "dqn", "dueling_dqn", "double_dqn", "dd_dqn"] = "double_dqn"
+    algorithm: Literal["ql", "dqn", "dueling_dqn", "double_dqn", "dd_dqn"] = "dd_dqn"
 
     # Discount factor for Temporal-Difference algorithms
     gamma: float = 0.95
