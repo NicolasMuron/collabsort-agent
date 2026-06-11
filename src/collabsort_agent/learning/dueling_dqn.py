@@ -33,28 +33,26 @@ class dueling_Network(nn.Module):
         self.state_size = state_size
         self.action_size = action_size
 
-        # Common feature layer (Réduit à une seule couche)
+        # Common feature layer
         self.feature_layer = nn.Sequential(
             nn.Linear(state_size, 100),
+            nn.ReLU(),
+            nn.Linear(100, 100),
             nn.ReLU()
         )
 
-        # Value stream (Rallongé pour compenser)
+        # Value stream
         self.value_stream = nn.Sequential(
-            nn.Linear(100, 100),
+            nn.Linear(100, 30),
             nn.ReLU(),
-            nn.Linear(100, 50),
-            nn.ReLU(),
-            nn.Linear(50, 1)  # Output is a single value for the state
+            nn.Linear(30, 1)  # Output is a single value for the state
         )
 
-        # Advantage stream (Rallongé pour compenser)
+        # Advantage stream
         self.advantage_stream = nn.Sequential(
-            nn.Linear(100, 100),
+            nn.Linear(100, 70),
             nn.ReLU(),
-            nn.Linear(100, 50),
-            nn.ReLU(),
-            nn.Linear(50, action_size)  # Output is an advantage for each action
+            nn.Linear(70, action_size)  # Output is an advantage for each action
         )
 
     def forward(self, state: torch.Tensor, return_components: bool = False) -> torch.Tensor:
