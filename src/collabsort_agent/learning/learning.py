@@ -40,7 +40,7 @@ class Config:
     replay_buffer_size: int = 100000
 
     # Interval in learning steps to copy online weights to target network.
-    target_network_sync_freq: int = 500
+    target_network_sync_freq: int = 1000
 
     # Initial Q-Value
     q_start: float = 0
