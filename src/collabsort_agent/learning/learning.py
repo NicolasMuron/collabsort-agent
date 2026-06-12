@@ -16,7 +16,7 @@ class Config:
     """Learning configuration"""
 
     # Learning algorithm to use
-    algorithm: Literal["ql", "dqn", "dueling_dqn", "double_dqn", "dd_dqn"] = "dqn"
+    algorithm: Literal["ql", "dqn", "dueling_dqn", "double_dqn", "dd_dqn"] = "dueling_dqn"
 
     # Discount factor for Temporal-Difference algorithms
     gamma: float = 0.99
@@ -34,7 +34,7 @@ class Config:
     alpha_max: float = 0.5
 
     # Batch size for sampling from replay buffer
-    batch_size: int = 128
+    batch_size: int = 256
 
     # Size of the DQN replay buffer
     replay_buffer_size: int = 100000
