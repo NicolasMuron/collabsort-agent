@@ -34,7 +34,7 @@ class Config:
     alpha_max: float = 0.5
 
     # Batch size for sampling from replay buffer
-    batch_size: int = 128
+    batch_size: int = 256
 
     # Size of the DQN replay buffer
     replay_buffer_size: int = 10000
