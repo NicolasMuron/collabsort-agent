@@ -19,7 +19,7 @@ class Config:
     algorithm: Literal["ql", "dqn", "dueling_dqn", "double_dqn", "dd_dqn"] = "dqn"
 
     # Discount factor for Temporal-Difference algorithms
-    gamma: float = 0.97
+    gamma: float = 0.99
 
     # Learning rate for gradient descent
     lr: float = 1e-3
@@ -40,7 +40,7 @@ class Config:
     replay_buffer_size: int = 50000
 
     # Interval in learning steps to copy online weights to target network.
-    target_network_sync_freq: int = 2000
+    target_network_sync_freq: int = 500
 
     # Initial Q-Value
     q_start: float = 0
