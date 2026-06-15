@@ -61,7 +61,7 @@ class dueling_Network(nn.Module):
         advantages = self.advantage_stream(features)
 
         # Combine value and advantages to get Q-values
-        q_values = value + (advantages - advantages.mean(dim=1, keepdim=True)[0])
+        q_values = value + (advantages - advantages.mean(dim=1, keepdim=True))
         if return_components:
             return q_values, value, advantages
         return q_values
