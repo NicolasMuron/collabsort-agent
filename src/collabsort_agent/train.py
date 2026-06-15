@@ -25,6 +25,7 @@ from collabsort_agent.learning.dd_dqn import DD_DQN
 from collabsort_agent.learning.double_dqn import DDQN
 from collabsort_agent.learning.dueling_dqn import DuelingDQN
 from collabsort_agent.learning.dqn import DQN
+from collabsort_agent.learning.per import PER
 from collabsort_agent.learning.q_learning import Qlearning
 from collabsort_agent.memory import Memory
 from collabsort_agent.metacognition import MetaController
@@ -87,7 +88,13 @@ def create_agent(config: Config, sample_obs: dict, rng: np.random.Generator) -> 
             config=config.learning,
             n_actions=n_actions,
             state_size=extended_state_size,
-        )  
+        )
+    elif config.learning.algorithm == "per":
+        estimator = PER(
+            config=config.learning,
+            n_actions=n_actions,
+            state_size=extended_state_size,
+        )             
     else:
         raise Exception(f"Unrecognized learning algorithm: {config.learning.algorithm}")
 
