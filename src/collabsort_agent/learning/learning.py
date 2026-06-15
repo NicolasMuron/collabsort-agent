@@ -34,10 +34,10 @@ class Config:
     alpha_max: float = 0.5
 
     # Batch size for sampling from replay buffer
-    batch_size: int = 256
+    batch_size: int = 512
 
     # Size of the DQN replay buffer
-    replay_buffer_size: int = 100000
+    replay_buffer_size: int = 150000
 
     # Interval in learning steps to copy online weights to target network.
     target_network_sync_freq: int = 300
