@@ -55,15 +55,13 @@ class dueling_Network(nn.Module):
             nn.Linear(50, action_size)  # Output is an advantage for each action
         )
 
-    def forward(self, state: torch.Tensor, return_components: bool = False) -> torch.Tensor:
+    def forward(self, state: torch.Tensor) -> torch.Tensor:
         features = self.feature_layer(state)
         value = self.value_stream(features)
         advantages = self.advantage_stream(features)
 
         # Combine value and advantages to get Q-values
         q_values = value + (advantages - advantages.mean(dim=1, keepdim=True))
-        if return_components:
-            return q_values, value, advantages
         return q_values
     
     
