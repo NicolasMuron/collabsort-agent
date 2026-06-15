@@ -12,7 +12,7 @@ class Config:
     """Perception configuration"""
 
     # Number of perceived columns in an observation
-    n_perceived_cols: int = 4
+    n_perceived_cols: int = 3
 
 
 class Perceiver:
