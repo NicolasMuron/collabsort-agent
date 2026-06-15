@@ -87,14 +87,6 @@ class SumTree:
         # Look at what index we want to put the experience
         tree_index = self.data_pointer + self.capacity - 1
 
-        """ tree:
-                    0
-                   / \
-                  0   0
-                 / \ / \
-        tree_index  0 0  0  We fill the leaves from left to right
-        """
-
         # Update data frame
         self.data[self.data_pointer] = data
 
