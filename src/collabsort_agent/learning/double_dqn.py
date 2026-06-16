@@ -11,6 +11,6 @@ class DoubleDQN(DQN):
         """Double DQN calculation rule: the online network selects, the target network evaluates"""
         with torch.no_grad():
             # a* = argmax_a Q_online(s', a)
-            next_state_actions = self.q_network(next_states).max(1)[1].unsqueeze(1)
+            next_state_actions = self.q_network(next_states).argmax(dim=-1, keepdim=True)
             # Q_target(s', a*)
-            return self.target_network(next_states).gather(1, next_state_actions).squeeze(1)
+            return self.target_network(next_states).gather(-1, next_state_actions).squeeze(-1)
