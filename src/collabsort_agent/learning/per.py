@@ -161,7 +161,7 @@ class PER(ActionValueEstimator):
 
         # Hyperparamètres PER
         self.per_epsilon = 0.001        # évite priorité nulle
-        self.per_alpha = 0.6            # exposant de prioritisation
+        self.per_alpha = 0.3            # exposant de prioritisation
         self.per_beta = 0.4             # IS weight initial
         self.per_beta_increment = 0.001 # β → 1 progressivement
 
