@@ -9,7 +9,7 @@ import torch.optim as optim
 from .dqn import DQN, get_device
 
 class Dueling_Network(nn.Module):
-    """Dueling DQN architecture"""
+    """Dueling DQN architecture."""
     def __init__(self, state_size: int, action_size: int) -> None:
         super(Dueling_Network, self).__init__()
         self.state_size = state_size
@@ -42,17 +42,15 @@ class Dueling_Network(nn.Module):
         value = self.value_stream(features)
         advantages = self.advantage_stream(features)
 
-        # Combine value and advantages to get Q-values
+        # Combine value and advantages to get Q-values: Q(s,a) = V(s) + (A(s,a) - mean(A(s,a)))
         q_values = value + (advantages - advantages.mean(dim=1, keepdim=True))
         return q_values
 
 
 class DuelingDQN(DQN):  
-    """Dueling DQN algorithm implementation"""
+    """Dueling DQN algorithm implementation."""
     
     def __init__(self, config, n_actions: int, state_size: int) -> None:
-        # 1. On appelle le constructeur de la classe mère (DQN) 
-        # pour initialiser le buffer, les compteurs, la fonction de perte, etc.
         super().__init__(config=config, n_actions=n_actions, state_size=state_size)
         
        # Create Dueling-Network for estimating action values from dueling architecture
