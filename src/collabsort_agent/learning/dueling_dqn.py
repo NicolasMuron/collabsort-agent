@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from .dqn import DQN, get_device
+from collabsort_agent.learning.dqn import DQN, get_device
 
 class Dueling_Network(nn.Module):
     """Dueling DQN architecture."""
@@ -22,14 +22,12 @@ class Dueling_Network(nn.Module):
             nn.Linear(100, 100),
             nn.ReLU()
         )
-
         # Value stream
         self.value_stream = nn.Sequential(
             nn.Linear(100, 50),
             nn.ReLU(),
             nn.Linear(50, 1)
         )
-
         # Advantage stream
         self.advantage_stream = nn.Sequential(
             nn.Linear(100, 50),
@@ -53,11 +51,12 @@ class DuelingDQN(DQN):
     def __init__(self, config, n_actions: int, state_size: int) -> None:
         super().__init__(config=config, n_actions=n_actions, state_size=state_size)
         
-       # Create Dueling-Network for estimating action values from dueling architecture
+        # Create Dueling-Network for estimating action values from dueling architecture
         self.q_network = Dueling_Network(state_size=state_size, action_size=n_actions).to(self.device)
         self.target_network = Dueling_Network(state_size=state_size, action_size=n_actions).to(self.device)
         
         self.target_network.load_state_dict(self.q_network.state_dict())
         self.target_network.eval()
         
+        # We recreate the optimizer so that it follows the parameters of our new q_network
         self.optimizer = optim.Adam(params=self.q_network.parameters(), lr=self.config.lr)

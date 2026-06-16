@@ -125,6 +125,12 @@ class DQN(ActionValueEstimator):
 
         # Store transition in replay buffer
         self.replay_buffer.append((state, action, reward, next_state, done))
+        
+    def _get_next_q_values(self, next_states: torch.Tensor) -> torch.Tensor:
+        """Compute the max Q-values for the next states using the target network (Vanilla DQN)."""
+        with torch.no_grad():
+            return self.target_network(next_states).max(1)[0]    
+
 
     def _learn(self) -> None:
         """Update the Q-network parameters."""
@@ -159,10 +165,10 @@ class DQN(ActionValueEstimator):
         # Using q_network here would defeat the purpose of the target network: the
         # same network would be used both to generate targets and to be updated,
         # creating a moving-target problem that destabilises training.
-        with torch.no_grad():
-            q_next = self.target_network(next_states).max(1)[0]
-            # Q_target = r + gamma * max_a' Q_target(s', a') * (1 - done)
-            q_target = rewards + self.config.gamma * q_next * (1 - dones)
+        
+        # Compute the next state action-values according to the chosen strategy (Vanilla or Double)
+        q_next = self._get_next_q_values(next_states)
+        q_target = rewards + self.config.gamma * q_next * (1 - dones)
 
         loss = self.loss_fn(q_values, q_target)
         self.losses.append(loss.item())
