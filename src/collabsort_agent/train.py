@@ -21,8 +21,8 @@ from collabsort_agent.decision.exploration_decay import (
     ExponentialExplorationDecay,
     LinearExplorationDecay,
 )
-from collabsort_agent.learning.dd_dqn import DD_DQN
-from collabsort_agent.learning.double_dqn import DDQN
+from collabsort_agent.learning.dd_dqn import DoubleDuelingDQN
+from collabsort_agent.learning.double_dqn import DoubleDQN
 from collabsort_agent.learning.dueling_dqn import DuelingDQN
 from collabsort_agent.learning.dqn import DQN
 from collabsort_agent.learning.per import PER
@@ -78,13 +78,13 @@ def create_agent(config: Config, sample_obs: dict, rng: np.random.Generator) -> 
             state_size=extended_state_size,
         )    
     elif config.learning.algorithm == "ddqn":
-        estimator = DDQN(
+        estimator = DoubleDQN(
             config=config.learning,
             n_actions=n_actions,
             state_size=extended_state_size,
         )
     elif config.learning.algorithm == "dd_dqn":
-        estimator = DD_DQN(
+        estimator = DoubleDuelingDQN(
             config=config.learning,
             n_actions=n_actions,
             state_size=extended_state_size,
