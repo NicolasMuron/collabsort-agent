@@ -78,7 +78,7 @@ class PER(DoubleDuelingDQN):
 
         # Hyperparamètres PER (valeurs alignées sur Schaul et al. 2016, variante "proportional")
         self.per_epsilon = 0.001        # Évite une priorité nulle
-        self.per_alpha = 0.6            # Exposant de prioritisation (0.6 recommandé pour proportional)
+        self.per_alpha = 0            # Exposant de prioritisation (0.6 recommandé pour proportional)
         self.per_beta = 0.4             # Importance Sampling weight initial
         self.per_beta_increment = (1 - self.per_beta) / 300000
 
