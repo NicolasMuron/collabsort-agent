@@ -96,7 +96,7 @@ class PER(DoubleDuelingDQN):
         # car la prioritisation augmente la magnitude typique des gradients.
         # On recrée donc l'optimizer avec un lr propre à PER (sans toucher self.config.lr,
         # qui reste la référence pour les autres algos).
-        self.per_lr = self.config.lr/4
+        self.per_lr = self.config.lr
         self.optimizer = optim.Adam(params=self.q_network.parameters(), lr=self.per_lr)
 
     def _get_priority(self, error: float) -> float:
