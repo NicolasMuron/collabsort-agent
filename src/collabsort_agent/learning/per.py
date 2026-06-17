@@ -76,11 +76,21 @@ class PER(DoubleDuelingDQN):
         # Initialisation du SumTree à la place du deque (replay_buffer)
         self.tree = SumTree(config.replay_buffer_size)
 
-        # Hyperparamètres PER
+        # Hyperparamètres PER (valeurs alignées sur Schaul et al. 2016, variante "proportional")
         self.per_epsilon = 0.001        # Évite une priorité nulle
-        self.per_alpha = 0.05           # Exposant de prioritisation
+        self.per_alpha = 0.6            # Exposant de prioritisation (0.6 recommandé pour proportional)
         self.per_beta = 0.4             # Importance Sampling weight initial
-        self.per_beta_increment = (1 - self.per_beta) / 300000 
+        self.per_beta_increment = (1 - self.per_beta) / 300000
+
+        # Reward/TD-error clipping range, comme dans le papier original (stabilité numérique)
+        self.per_clip_value = 1.0
+
+        # Le papier réduit le step-size d'un facteur 4 par rapport au baseline,
+        # car la prioritisation augmente la magnitude typique des gradients.
+        # On recrée donc l'optimizer avec un lr propre à PER (sans toucher self.config.lr,
+        # qui reste la référence pour les autres algos).
+        self.per_lr = self.config.lr / 4
+        self.optimizer = optim.Adam(params=self.q_network.parameters(), lr=self.per_lr)
 
     def _get_priority(self, error: float) -> float:
         return (abs(error) + self.per_epsilon) ** self.per_alpha
@@ -93,9 +103,15 @@ class PER(DoubleDuelingDQN):
         next_state: np.ndarray,
         done: bool = False,
     ) -> None:
-        """Override la méthode de stockage pour utiliser le SumTree avec la priorité maximale."""
+        """Override la méthode de stockage pour utiliser le SumTree avec la priorité maximale.
+
+        Le reward est clippé dans [-1, 1] comme dans le papier original (Section 4),
+        pour éviter que des transitions à forte récompense (ex: +8 ou -10 dans notre env)
+        ne dominent excessivement la distribution de priorités du SumTree.
+        """
+        reward_clipped = float(np.clip(reward, -self.per_clip_value, self.per_clip_value))
         max_priority = self.tree.tree.max() if self.tree.n_entries > 0 else 1.0
-        self.tree.add(max_priority, (state, action, reward, next_state, done))
+        self.tree.add(max_priority, (state, action, reward_clipped, next_state, done))
 
     def _sample(self) -> tuple[list, list, np.ndarray]:
         """Échantillonne un batch depuis le SumTree avec stratification et calcule les IS weights."""
@@ -159,8 +175,11 @@ class PER(DoubleDuelingDQN):
         torch.nn.utils.clip_grad_norm_(self.q_network.parameters(), max_norm=10.0)
         self.optimizer.step()
 
-        # Mise à jour des priorités dans le SumTree avec les nouvelles erreurs TD
+        # Mise à jour des priorités dans le SumTree avec les nouvelles erreurs TD.
+        # Clipping dans [-1, 1] comme dans le papier original, pour éviter qu'une
+        # transition à erreur TD extrême ne domine totalement le SumTree.
         td_errors = (q_target - q_values).abs().detach().cpu().numpy()
+        td_errors = np.clip(td_errors, -self.per_clip_value, self.per_clip_value)
         for idx, error in zip(idxs, td_errors):
             self.tree.update(idx, self._get_priority(error))
 
