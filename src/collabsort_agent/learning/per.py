@@ -109,9 +109,9 @@ class PER(DoubleDuelingDQN):
         pour éviter que des transitions à forte récompense (ex: +8 ou -10 dans notre env)
         ne dominent excessivement la distribution de priorités du SumTree.
         """
-        reward_clipped = float(np.clip(reward, -self.per_clip_value, self.per_clip_value))
+        ##reward_clipped = float(np.clip(reward, -self.per_clip_value, self.per_clip_value))
         max_priority = self.tree.tree.max() if self.tree.n_entries > 0 else 1.0
-        self.tree.add(max_priority, (state, action, reward_clipped, next_state, done))
+        self.tree.add(max_priority, (state, action, reward, next_state, done))
 
     def _sample(self) -> tuple[list, list, np.ndarray]:
         """Échantillonne un batch depuis le SumTree avec stratification et calcule les IS weights."""
@@ -179,8 +179,8 @@ class PER(DoubleDuelingDQN):
         # Clipping dans [-1, 1] comme dans le papier original, pour éviter qu'une
         # transition à erreur TD extrême ne domine totalement le SumTree.
         td_errors = (q_target - q_values).abs().detach().cpu().numpy()
-        td_errors = np.clip(td_errors, -self.per_clip_value, self.per_clip_value)
-        for idx, error in zip(idxs, td_errors):
+        td_errors_for_priority = np.clip(td_errors, 0, self.per_clip_value)
+        for idx, error in zip(idxs, td_errors_for_priority):
             self.tree.update(idx, self._get_priority(error))
 
         # Synchronisation du réseau cible (Target Network)
