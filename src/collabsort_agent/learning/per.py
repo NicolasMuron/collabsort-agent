@@ -85,7 +85,7 @@ class PER(DoubleDuelingDQN):
 
         # Hyperparamètres PER (valeurs alignées sur Schaul et al. 2016, variante "proportional")
         self.per_epsilon = 0.001        # Évite une priorité nulle
-        self.per_alpha = 0.2            # Exposant de prioritisation (0.6 recommandé pour proportional)
+        self.per_alpha = 0.6            # Exposant de prioritisation (0.6 recommandé pour proportional)
         self.per_beta = 0.4             # Importance Sampling weight initial
         self.per_beta_increment = (1 - self.per_beta) / 300000
 
@@ -96,7 +96,7 @@ class PER(DoubleDuelingDQN):
         # car la prioritisation augmente la magnitude typique des gradients.
         # On recrée donc l'optimizer avec un lr propre à PER (sans toucher self.config.lr,
         # qui reste la référence pour les autres algos).
-        self.per_lr = self.config.lr
+        self.per_lr = self.config.lr/4
         self.optimizer = optim.Adam(params=self.q_network.parameters(), lr=self.per_lr)
 
     def _get_priority(self, error: float) -> float:
