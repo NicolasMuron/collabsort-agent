@@ -113,29 +113,43 @@ class PER(DoubleDuelingDQN):
         max_priority = self.tree.tree.max() if self.tree.n_entries > 0 else 1.0
         self.tree.add(max_priority, (state, action, reward, next_state, done))
 
-    def _sample(self) -> tuple[list, list, np.ndarray]:
-        """Échantillonne un batch depuis le SumTree avec stratification et calcule les IS weights."""
+    #def _sample(self) -> tuple[list, list, np.ndarray]:
+        #"""Échantillonne un batch depuis le SumTree avec stratification et calcule les IS weights."""
+        #minibatch, idxs, priorities = [], [], []
+        #segment = self.tree.total_priority() / self.config.batch_size
+
+        ## β augmente progressivement vers 1.0
+        #self.per_beta = min(1.0, self.per_beta + self.per_beta_increment)
+
+        #for i in range(self.config.batch_size):
+            #a = segment * i
+            #b = segment * (i + 1)
+            #value = np.random.uniform(a, b)
+            #idx, p, data = self.tree.get_leaf(value)
+            #priorities.append(p)
+            #minibatch.append(data)
+            #idxs.append(idx)
+
+        ## Calcul IS weights (correction du biais d'échantillonnage)
+        #sampling_probs = np.array(priorities) / self.tree.total_priority()
+        #is_weights = np.power(self.tree.n_entries * sampling_probs, -self.per_beta)
+        #is_weights /= is_weights.max()  # Normalisation
+
+        #return minibatch, idxs, is_weights
+        
+    def _sample(self):
+        """TEST : tirage aléatoire pur au lieu du stratifié, pour isoler le bug."""
+        indices = np.random.choice(self.tree.n_entries, self.config.batch_size, replace=False)
         minibatch, idxs, priorities = [], [], []
-        segment = self.tree.total_priority() / self.config.batch_size
-
-        # β augmente progressivement vers 1.0
-        self.per_beta = min(1.0, self.per_beta + self.per_beta_increment)
-
-        for i in range(self.config.batch_size):
-            a = segment * i
-            b = segment * (i + 1)
-            value = np.random.uniform(a, b)
-            idx, p, data = self.tree.get_leaf(value)
-            priorities.append(p)
-            minibatch.append(data)
-            idxs.append(idx)
-
-        # Calcul IS weights (correction du biais d'échantillonnage)
-        sampling_probs = np.array(priorities) / self.tree.total_priority()
-        is_weights = np.power(self.tree.n_entries * sampling_probs, -self.per_beta)
-        is_weights /= is_weights.max()  # Normalisation
-
-        return minibatch, idxs, is_weights
+        for i in indices:
+            tree_idx = i + self.tree.capacity - 1
+            idxs.append(tree_idx)
+            priorities.append(self.tree.tree[tree_idx])
+            minibatch.append(self.tree.data[i])
+        is_weights = np.ones(self.config.batch_size)  # poids neutres
+        return minibatch, idxs, is_weights    
+    
+        
 
     def _learn(self) -> None:
         """Version surchargée de _learn intégrant la pondération par IS weights et la mise à jour de l'arbre."""
