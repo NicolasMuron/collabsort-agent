@@ -34,6 +34,8 @@ class SumTree:
             self.n_entries += 1
 
     def _propagate(self, idx: int, change: float):
+        if idx <= 0: 
+            return
         parent = (idx - 1) // 2
         self.tree[parent] += change
         if parent != 0:
@@ -47,12 +49,17 @@ class SumTree:
     def _retrieve(self, idx: int, s: float) -> int:
         left_child_index = 2 * idx + 1
         right_child_index = left_child_index + 1
+        
+        # Si on a atteint le bas de l'arbre (les feuilles)
         if left_child_index >= len(self.tree):
             return idx
+            
         if s <= self.tree[left_child_index]:
             return self._retrieve(left_child_index, s)
         else:
-            return self._retrieve(right_child_index, s - self.tree[left_child_index])
+            # Sécurité : s'assurer qu'on ne cherche pas une valeur supérieure à ce que l'arbre contient
+            remaining_val = s - self.tree[left_child_index]
+            return self._retrieve(right_child_index, remaining_val)
 
     def get_leaf(self, s: float) -> tuple[int, float, any]:
         leaf_index = self._retrieve(0, s)
@@ -78,7 +85,7 @@ class PER(DoubleDuelingDQN):
 
         # Hyperparamètres PER (valeurs alignées sur Schaul et al. 2016, variante "proportional")
         self.per_epsilon = 0.001        # Évite une priorité nulle
-        self.per_alpha = 0            # Exposant de prioritisation (0.6 recommandé pour proportional)
+        self.per_alpha = 0.2            # Exposant de prioritisation (0.6 recommandé pour proportional)
         self.per_beta = 0.4             # Importance Sampling weight initial
         self.per_beta_increment = (1 - self.per_beta) / 300000
 
@@ -113,43 +120,58 @@ class PER(DoubleDuelingDQN):
         max_priority = self.tree.tree.max() if self.tree.n_entries > 0 else 1.0
         self.tree.add(max_priority, (state, action, reward, next_state, done))
 
-    #def _sample(self) -> tuple[list, list, np.ndarray]:
-        #"""Échantillonne un batch depuis le SumTree avec stratification et calcule les IS weights."""
-        #minibatch, idxs, priorities = [], [], []
-        #segment = self.tree.total_priority() / self.config.batch_size
-
-        ## β augmente progressivement vers 1.0
-        #self.per_beta = min(1.0, self.per_beta + self.per_beta_increment)
-
-        #for i in range(self.config.batch_size):
-            #a = segment * i
-            #b = segment * (i + 1)
-            #value = np.random.uniform(a, b)
-            #idx, p, data = self.tree.get_leaf(value)
-            #priorities.append(p)
-            #minibatch.append(data)
-            #idxs.append(idx)
-
-        ## Calcul IS weights (correction du biais d'échantillonnage)
-        #sampling_probs = np.array(priorities) / self.tree.total_priority()
-        #is_weights = np.power(self.tree.n_entries * sampling_probs, -self.per_beta)
-        #is_weights /= is_weights.max()  # Normalisation
-
-        #return minibatch, idxs, is_weights
-        
-    def _sample(self):
-        """TEST : tirage aléatoire pur au lieu du stratifié, pour isoler le bug."""
-        indices = np.random.choice(self.tree.n_entries, self.config.batch_size, replace=False)
+    def _sample(self) -> tuple[list, list, np.ndarray]:
+        """Échantillonne un batch depuis le SumTree avec stratification et calcule les IS weights."""
         minibatch, idxs, priorities = [], [], []
-        for i in indices:
-            tree_idx = i + self.tree.capacity - 1
-            idxs.append(tree_idx)
-            priorities.append(self.tree.tree[tree_idx])
-            minibatch.append(self.tree.data[i])
-        is_weights = np.ones(self.config.batch_size)  # poids neutres
-        return minibatch, idxs, is_weights    
-    
         
+        # Sécurité : Si l'arbre est vide ou presque, éviter une division par 0
+        total_p = self.tree.total_priority()
+        if total_p == 0:
+            total_p = 1.0
+            
+        segment = total_p / self.config.batch_size
+
+        # β augmente progressivement vers 1.0
+        self.per_beta = min(1.0, self.per_beta + self.per_beta_increment)
+
+        for i in range(self.config.batch_size):
+            a = segment * i
+            b = segment * (i + 1)
+            
+            # On restreint légèrement la borne supérieure pour éviter les débordements d'arrondis
+            value = np.random.uniform(a, min(b, total_p - 1e-5))
+            
+            idx, p, data = self.tree.get_leaf(value)
+            
+            # --- SÉCURITÉ ANTI-FEUILLE VIDE ---
+            # Si le data récupéré est un entier (le 0 de l'initialisation) ou est invalide
+            attempts = 0
+            while (not isinstance(data, (tuple, list))) and attempts < 10:
+                # On ré-échantillonne sur une valeur aléatoire purement valide (plus basse dans l'arbre)
+                value = np.random.uniform(0, max(1e-5, total_p - 1e-2))
+                idx, p, data = self.tree.get_leaf(value)
+                attempts += 1
+            
+            # Éviter une priorité strictement nulle qui ferait planter l'Importance Sampling
+            p = max(p, self.per_epsilon)
+            
+            priorities.append(p)
+            minibatch.append(data)
+            idxs.append(idx)
+
+        # Calcul IS weights (correction du biais d'échantillonnage)
+        sampling_probs = np.array(priorities) / total_p
+        
+        # Utiliser self.tree.n_entries pour refléter le nombre RÉEL d'éléments stockés
+        is_weights = np.power(self.tree.n_entries * sampling_probs, -self.per_beta)
+        
+        # Sécurité pour éviter la division par zéro lors de la normalisation
+        max_weight = is_weights.max()
+        if max_weight == 0:
+            max_weight = 1.0
+        is_weights /= max_weight  # Normalisation
+
+        return minibatch, idxs, is_weights        
 
     def _learn(self) -> None:
         """Version surchargée de _learn intégrant la pondération par IS weights et la mise à jour de l'arbre."""
