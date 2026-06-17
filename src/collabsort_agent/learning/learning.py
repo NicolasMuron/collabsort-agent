@@ -37,7 +37,7 @@ class Config:
     batch_size: int = 256
 
     # Size of the DQN replay buffer
-    replay_buffer_size: int = 100000
+    replay_buffer_size: int = 300000
 
     # Interval in learning steps to copy online weights to target network.
     target_network_sync_freq: int = 500
