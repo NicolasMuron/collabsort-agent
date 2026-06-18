@@ -87,7 +87,7 @@ class PER(DoubleDuelingDQN):
         self.per_epsilon = 0.001        # Évite une priorité nulle
         self.per_alpha = 0.6            # Exposant de prioritisation (0.6 recommandé pour proportional)
         self.per_beta = 0.4             # Importance Sampling weight initial
-        self.per_beta_increment = (1 - self.per_beta) / 300000
+        self.per_beta_increment = (1 - self.per_beta) / 200000
 
         # Reward/TD-error clipping range, comme dans le papier original (stabilité numérique)
         self.per_clip_value = 1.0
