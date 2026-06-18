@@ -60,11 +60,10 @@ class DQN(ActionValueEstimator):
         super().__init__(config=config, n_actions=n_actions)
 
         self.device = get_device()
+        self.state_size = state_size
 
         # Create Q-network for estimating action values
-        self.q_network = QNetwork(input_size=state_size, output_size=n_actions).to(
-            self.device
-        )
+        self.q_network = self.build_network().to(self.device)
 
         # Use SmoothL1Loss (Huber) rather than MSELoss.
         # DQN targets can have large variance; Huber loss is less sensitive to
@@ -76,10 +75,7 @@ class DQN(ActionValueEstimator):
         )
 
         # Create target network with fixed parameters (stabilizes training)
-        self.target_network = QNetwork(input_size=state_size, output_size=n_actions).to(
-            self.device
-        )
-        self.target_network.load_state_dict(self.q_network.state_dict())
+        self.target_network = self.build_network().to(self.device)
         # Target network must not accumulate gradients
         self.target_network.eval()
 
@@ -88,6 +84,10 @@ class DQN(ActionValueEstimator):
 
         # Step counter used to decide when to sync the target network
         self.learning_step: int = 0
+        
+    def build_network(self) -> nn.Module:
+        """Réseau par défaut (Vanilla / Double)."""
+        return QNetwork(input_size=self.state_size, output_size=self.n_actions) 
 
     def get_action_values(self, state: np.ndarray) -> np.ndarray:
         # Convert NumPy array to PyTorch tensor
