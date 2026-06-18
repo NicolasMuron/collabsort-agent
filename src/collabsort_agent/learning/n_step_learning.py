@@ -8,10 +8,10 @@ import torch.nn as nn
 import torch.optim as optim
 
 from collabsort_agent.learning import Config as LearningConfig
-from collabsort_agent.learning.dd_dqn import DoubleDuelingDQN
+from collabsort_agent.learning.dqn import DQN
 
 
-class NStepLearning(DoubleDuelingDQN):  # Inherit from DoubleDuelingDQN to reuse its methods and attributes
+class NStepLearning(DQN):  # Inherit from DQN to reuse its methods and attributes
     
     def __init__(
         self,
@@ -20,7 +20,7 @@ class NStepLearning(DoubleDuelingDQN):  # Inherit from DoubleDuelingDQN to reuse
         state_size: int,
         n_step: int = 3,  # Default to 3-step learning
     ):
-        # Initialize DoubleDuelingDQN parent class
+        # Initialize DQN parent class
         super().__init__(config=config, n_actions=n_actions, state_size=state_size)
         self.n_step = n_step
         self.n_step_buffer = []  # Buffer to store the last n steps

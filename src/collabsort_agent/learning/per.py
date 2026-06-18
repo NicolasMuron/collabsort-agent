@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 from collabsort_agent.learning import Config as LearningConfig
-from collabsort_agent.learning.dd_dqn import DoubleDuelingDQN
+from collabsort_agent.learning.dqn import DQN
 
 
 class SumTree:
@@ -70,8 +70,8 @@ class SumTree:
         return self.tree[0]
 
 
-class PER(DoubleDuelingDQN):
-    """Prioritized Experience Replay built on top of Double Dueling DQN."""
+class PER(DQN):
+    """Prioritized Experience Replay built on top of DQN."""
 
     def __init__(self, config: LearningConfig, n_actions: int, state_size: int) -> None:
         # Initialise DoubleDuelingDQN (qui gère l'init des réseaux Dueling, device, optimizer, etc.)
@@ -87,7 +87,9 @@ class PER(DoubleDuelingDQN):
         self.per_epsilon = 0.001        # Évite une priorité nulle
         self.per_alpha = 0.6            # Exposant de prioritisation (0.6 recommandé pour proportional)
         self.per_beta = 0.4             # Importance Sampling weight initial
-        self.per_beta_increment = (1 - self.per_beta) / 200000
+        self.ratio = 1.0                # Atteint 1 au dernier step
+        self.n_steps = self.config.n_episodes * self.config.n_steps_episode * self.ratio  # Nombre total de steps pour l'augmentation progressive de β
+        self.per_beta_increment = (1 - self.per_beta) / self.n_steps  # Augmentation progressive vers 1.0
 
         # Reward/TD-error clipping range, comme dans le papier original (stabilité numérique)
         self.per_clip_value = 1.0
