@@ -86,7 +86,7 @@ class PER(DQN):
         # Hyperparamètres PER (valeurs alignées sur Schaul et al. 2016, variante "proportional")
         self.per_epsilon = 0.001        # Évite une priorité nulle
         self.per_alpha = 0.6            # Exposant de prioritisation (0.6 recommandé pour proportional)
-        self.per_beta = 0.6             # Importance Sampling weight initial
+        self.per_beta = 0.1             # Importance Sampling weight initial
         self.ratio = 1.0                # Atteint 1 au dernier step
         self.n_steps = self.config.n_episodes * self.config.n_steps_episode * self.ratio  # Nombre total de steps pour l'augmentation progressive de β
         self.per_beta_increment = (1 - self.per_beta) / self.n_steps  # Augmentation progressive vers 1.0
