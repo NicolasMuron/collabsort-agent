@@ -18,7 +18,7 @@ class NStepLearning(DQN):  # Inherit from DQN to reuse its methods and attribute
         config: LearningConfig,
         n_actions: int,
         state_size: int,
-        n_step: int = 5,  # Default to 3-step learning
+        n_step: int = 3,  # Default to 3-step learning
     ):
         super().__init__(config=config, n_actions=n_actions, state_size=state_size)
         self.n_step = n_step
