@@ -15,6 +15,7 @@ from tqdm import trange
 from collabsort_agent.agent import Agent
 from collabsort_agent.config import Config, save_cfg
 from collabsort_agent.decision.ard import ARD
+from collabsort_agent.decision.greedy import Greedy
 from collabsort_agent.decision.decision_rule import WinAllRule
 from collabsort_agent.decision.epsilon_greedy import EpsilonGreedy
 from collabsort_agent.decision.exploration_decay import (
@@ -26,6 +27,7 @@ from collabsort_agent.learning.double_dqn import DoubleDQN
 from collabsort_agent.learning.dueling_dqn import DuelingDQN
 from collabsort_agent.learning.dqn import DQN
 from collabsort_agent.learning.per import PER
+from collabsort_agent.learning.noisy_dqn import NoisyDQN
 from collabsort_agent.learning.n_step_learning import NStepLearning
 from collabsort_agent.learning.q_learning import Qlearning
 from collabsort_agent.memory import Memory
@@ -101,7 +103,14 @@ def create_agent(config: Config, sample_obs: dict, rng: np.random.Generator) -> 
             config=config.learning,
             n_actions=n_actions,
             state_size=extended_state_size,
-        )             
+        ) 
+    elif config.learning.algorithm == "noisy":
+        estimator = NoisyDQN(
+            config=config.learning,
+            n_actions=n_actions,
+            state_size=extended_state_size,
+        ) 
+               
     else:
         raise Exception(f"Unrecognized learning algorithm: {config.learning.algorithm}")
 
@@ -136,6 +145,12 @@ def create_agent(config: Config, sample_obs: dict, rng: np.random.Generator) -> 
             estimator=estimator,
             decision_rule=decision_rule,
             meta_ctrl=meta_ctrl,
+            rng=rng,
+        )
+    elif config.decision.algorithm == "gre":
+        deliberator = Greedy(
+            config=config.decision,
+            estimator=estimator,
             rng=rng,
         )
     else:
