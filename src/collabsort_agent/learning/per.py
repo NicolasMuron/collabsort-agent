@@ -12,7 +12,7 @@ from collabsort_agent.learning.dqn import DQN
 
 
 class SumTree:
-    """Structure d'arbre binaire pour stocker efficacement les priorités."""
+    """A binary tree structure for efficiently storing priorities."""
     data_pointer = 0
 
     def __init__(self, capacity: int):
@@ -22,7 +22,7 @@ class SumTree:
         self.n_entries = 0
 
     def add(self, priority: float, data: tuple):
-        """Ajoute une transition avec sa priorité initiale."""
+        """Add a transition with its initial priority."""
         tree_index = self.data_pointer + self.capacity - 1
         self.data[self.data_pointer] = data
         self.update(tree_index, priority)
@@ -51,14 +51,14 @@ class SumTree:
         left_child_index = 2 * idx + 1
         right_child_index = left_child_index + 1
         
-        # Si on a atteint le bas de l'arbre (les feuilles)
+        # If we've reached the bottom of the tree (the leaves)
         if left_child_index >= len(self.tree):
             return idx
             
         if s <= self.tree[left_child_index]:
             return self._retrieve(left_child_index, s)
         else:
-            # Sécurité : s'assurer qu'on ne cherche pas une valeur supérieure à ce que l'arbre contient
+            # Security: Make sure you don't try to access a value greater than what the tree contains
             remaining_val = s - self.tree[left_child_index]
             return self._retrieve(right_child_index, remaining_val)
 
@@ -75,31 +75,30 @@ class PER(DQN):
     """Prioritized Experience Replay built on top of DQN."""
 
     def __init__(self, config: LearningConfig, n_actions: int, state_size: int) -> None:
-        # Initialise DoubleDuelingDQN (qui gère l'init des réseaux Dueling, device, optimizer, etc.)
+        # Initialise DQN
         super().__init__(config=config, n_actions=n_actions, state_size=state_size)
         
-        # Override loss_fn pour éviter la réduction moyenne immédiate (besoin des IS weights element-wise)
+        # Override loss_fn to avoid immediate average reduction (requires element-wise IS weights)
         self.loss_fn = nn.SmoothL1Loss(reduction="none") 
 
-        # ATTENTION : Un seul arbre partagé pour éviter le décalage entre DQN et les tests PER
         self.tree = SumTree(config.replay_buffer_size)
         self.replay_buffer = self.tree
 
-        # Hyperparamètres PER (valeurs alignées sur Schaul et al. 2016, variante "proportional")
-        self.per_epsilon = 0.001        # Évite une priorité nulle
-        self.per_alpha = 0.6            # Exposant de prioritisation (0.6 recommandé pour proportional)
+        # PER hyperparameters (values aligned with Schaul et al. 2016, “proportional” variant)
+        self.per_epsilon = 0.001        # Avoids zero priority
+        self.per_alpha = 0.6            # Prioritization exponent
         self.per_beta = 0.4             # Importance Sampling weight initial
-        self.ratio = 1.0                # Atteint 1 au dernier step
-        self.n_steps = self.config.n_episodes * self.config.n_steps_episode * self.ratio  # Nombre total de steps pour l'augmentation progressive de β
-        self.per_beta_increment = (1 - self.per_beta) / self.n_steps  # Augmentation progressive vers 1.0
+        self.ratio = 1.0                # Reaches 1 at the last step
+        self.n_steps = self.config.n_episodes * self.config.n_steps_episode * self.ratio  # Total number of steps for progressive β increase
+        self.per_beta_increment = (1 - self.per_beta) / self.n_steps  # Progressive increase towards 1.0
 
-        # Reward/TD-error clipping range, comme dans le papier original (stabilité numérique)
+        # Reward/TD-error clipping range, like in the original paper (numerical stability)
         self.per_clip_value = 1.0
 
-        # Le papier réduit le step-size d'un facteur 4 par rapport au baseline,
-        # car la prioritisation augmente la magnitude typique des gradients.
-        # On recrée donc l'optimizer avec un lr propre à PER (sans toucher self.config.lr,
-        # qui reste la référence pour les autres algos).
+        # The paper reduces the step-size by a factor of 4 compared to the baseline,
+        # as prioritization increases the typical magnitude of gradients.
+        # We recreate the optimizer with a learning rate specific to PER (without touching self.config.lr,
+        # which remains the reference for other algorithms).
         self.per_lr = self.config.lr/4
         self.optimizer = optim.Adam(params=self.q_network.parameters(), lr=self.per_lr)
 
@@ -114,8 +113,8 @@ class PER(DQN):
         next_state: np.ndarray,
         done: bool = False,
     ) -> None:
-        """Override la méthode de stockage pour utiliser le SumTree avec la priorité maximale."""
-        # Calcul de la priorité max dynamique parmi les éléments insérés pour éviter les NaN
+        """Override the storage method to use SumTree with the maximum priority."""
+        # Calculating the maximum dynamic priority among the inserted elements
         if self.tree.n_entries == 0:
             max_priority = 1.0
         else:
@@ -124,56 +123,52 @@ class PER(DQN):
             max_priority = np.max(self.tree.tree[start_idx:end_idx])
             if max_priority == 0:
                 max_priority = 1.0
-
-        # CHANGEMENT : On pousse directement dans self.tree
+    
         self.tree.add(max_priority, (state, action, reward, next_state, done))
 
     def _sample(self) -> tuple[list, list, np.ndarray]:
-        """Échantillonne un batch depuis le SumTree avec stratification et calcule les IS weights."""
+        """Sample a batch from the SumTree with stratification and calculate the IS weights."""
         minibatch, idxs, priorities = [], [], []
         
-        # Sécurité : Si l'arbre est vide ou presque, éviter une division par 0
         total_p = self.tree.total_priority()
         if total_p == 0:
             total_p = 1.0
             
         segment = total_p / self.config.batch_size
 
-        # β augmente progressivement vers 1.0
+        # β gradually increases toward 1.0
         self.per_beta = min(1.0, self.per_beta + self.per_beta_increment)
 
         for i in range(self.config.batch_size):
             a = segment * i
             b = segment * (i + 1)
             
-            # On restreint légèrement la borne supérieure pour éviter les débordements d'arrondis
             value = np.random.uniform(a, min(b, total_p - 1e-5))
             
             idx, p, data = self.tree.get_leaf(value)
             
-            # --- SÉCURITÉ ANTI-FEUILLE VIDE ---
-            # Si le data récupéré est un entier (le 0 de l'initialisation) ou est invalide
+            # If the retrieved data is an integer (the 0 from initialization) or is invalid
             attempts = 0
             while (not isinstance(data, (tuple, list))) and attempts < 10:
-                # On ré-échantillonne sur une valeur aléatoire purement valide (plus basse dans l'arbre)
+                # We resample to a purely valid random value (lower in the tree)
                 value = np.random.uniform(0, max(1e-5, total_p - 1e-2))
                 idx, p, data = self.tree.get_leaf(value)
                 attempts += 1
             
-            # Éviter une priorité strictement nulle qui ferait planter l'Importance Sampling
+            # Avoid a strictly zero priority, which would cause Importance Sampling to crash
             p = max(p, self.per_epsilon)
             
             priorities.append(p)
             minibatch.append(data)
             idxs.append(idx)
 
-        # Calcul IS weights (correction du biais d'échantillonnage)
+        # Calculating IS weights
         sampling_probs = np.array(priorities) / total_p
         
-        # Utiliser self.tree.n_entries pour refléter le nombre RÉEL d'éléments stockés
+        # Use self.tree.n_entries to reflect the ACTUAL number of stored elements
         is_weights = np.power(self.tree.n_entries * sampling_probs, -self.per_beta)
         
-        # Sécurité pour éviter la division par zéro lors de la normalisation
+        # Security to avoid division by zero during normalization
         max_weight = is_weights.max()
         if max_weight == 0:
             max_weight = 1.0
@@ -182,29 +177,28 @@ class PER(DQN):
         return minibatch, idxs, is_weights        
 
     def _learn(self) -> None:
-        """Version surchargée et ultra-factorisée utilisant les fonctions de la classe mère."""
         if self.tree.n_entries < self.config.batch_size:
             return
 
-        # 1. Échantillonnage spécifique PER
+        # PER-Specific Sampling
         batch, idxs, is_weights = self._sample()
         
-        # 2. On laisse DQN faire la préparation des tenseurs standard
+        # We'll let DQN handle the preparation of the standard tensors
         tensors = self._prepare_tensors(batch) 
         is_weights_t = torch.tensor(is_weights, dtype=torch.float32, device=self.device)
 
-        # 3. Calcul de la perte element-wise pondérée par les IS weights
+        # Calculation of the element-wise loss weighted by the IS weights
         q_values, q_target = self._compute_q_values_and_targets(tensors)
         elementwise_loss = self.loss_fn(q_values, q_target)
         loss = (is_weights_t * elementwise_loss).mean()
         
-        # 4. Optimisation standard héritée
+        # Legacy Standard Optimization
         self._optimize_network(loss)
 
-        # 5. Spécificité PER : Mise à jour de l'arbre
+        # PER Feature: Tree Update
         td_errors = (q_target - q_values).abs().detach().cpu().numpy()
         for idx, error in zip(idxs, td_errors):
             self.tree.update(idx, self._get_priority(error))
 
-        # 6. Synchronisation héritée
+        # Legacy Synchronization
         self._handle_target_sync()

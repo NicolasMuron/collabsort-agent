@@ -12,57 +12,58 @@ from collabsort_agent.learning import Config as LearningConfig
 from collabsort_agent.learning.dqn import DQN
 
 
-class NStepLearning(DQN):  # Hérite de DQN pour réutiliser ses structures
+class NStepLearning(DQN):
+    """N-step learning algorithm implementation"""
     
     def __init__(
         self,
         config: LearningConfig,
         n_actions: int,
         state_size: int,
-        n_step: int = 5,  # Par défaut à 1 pour valider les tests de base de DQN
+        n_step: int = 1,  # Default value is 1 (like the classic DQN)
     ):
         super().__init__(config=config, n_actions=n_actions, state_size=state_size)
         self.n_step = n_step
-        self.n_step_buffer = []  # Buffer local temporaire
+        self.n_step_buffer = []  # Temporary local buffer
 
     def _store_transition(self, state, action, reward, next_state, done=False):
-        """Stocke une transition dans le buffer N-step et met à jour le replay buffer global."""
+        """Store a transition in the N-step buffer and update the replay buffer global."""
         self.n_step_buffer.append((state, action, reward, next_state, done))
         
-        # En fin d'épisode, on vide tout le buffer local restant
+        # At the end of the episode, we clear the entire remaining local buffer
         if done:
             while self.n_step_buffer:
                 self._process_n_step()
             return
 
         if len(self.n_step_buffer) < self.n_step:
-            return  # On attend d'avoir accumulé assez d'étapes
+            return  # We're waiting until we've completed enough stages
 
         self._process_n_step()
 
     def _process_n_step(self):
-        """Calcule le retour N-step et pousse le tuple de 6 éléments dans la file globale."""
+        """Calculate the N-step return and push the 6-element tuple into the global buffer."""
         state_0, action_0, _, _, _ = self.n_step_buffer[0]
         _, _, _, next_state_n, done_n = self.n_step_buffer[-1]
         actual_n = len(self.n_step_buffer)
 
-        # Calcul du rendement cumulé actualisé (N-step discounted return)
+        # Calculation of the Cumulative Discounted Return (N-step discounted return)
         R = sum(
             [self.n_step_buffer[i][2] * (self.config.gamma ** i) for i in range(actual_n)]
         )
         
-        # Correction de l'AttributeError : On stocke directement dans la deque du UniformReplayBuffer
+        # Store the data directly in the UniformReplayBuffer's deque.
         self.replay_buffer.buffer.append((state_0, action_0, R, next_state_n, done_n, actual_n))
 
-        # On fait glisser la fenêtre
+        # We drag the window
         self.n_step_buffer.pop(0)
 
     def _learn(self) -> None:
-        """Met à jour le réseau Q en utilisant les cibles de Bellman N-step."""
+        """Update the Q-network using the N-step Bellman targets."""
         if len(self.replay_buffer) < self.config.batch_size:
             return
 
-        # Échantillonnage à la main depuis la deque pour récupérer nos tuples à 6 éléments
+        # Manual sampling from the deque to retrieve our 6-element tuples
         batch = random.sample(self.replay_buffer.buffer, self.config.batch_size)
         states, actions, rewards, next_states, dones, actual_ns = zip(*batch, strict=True)
 
@@ -80,7 +81,7 @@ class NStepLearning(DQN):  # Hérite de DQN pour réutiliser ses structures
 
         with torch.no_grad():
             q_next = self._get_next_q_values(next_states)
-            # Application d'un gamma dynamique (gamma^actual_n) propre à chaque transition
+            # Application of a dynamic gamma (gamma^actual_n) specific to each transition
             gamma_corrected = self.config.gamma ** actual_ns
             q_target = rewards + gamma_corrected * q_next * (1 - dones)
 
