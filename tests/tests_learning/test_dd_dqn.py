@@ -4,8 +4,8 @@ Unit tests for the Double Dueling DQN (DD-DQN) algorithm.
 from collabsort_agent.learning import Config as LearningConfig
 from collabsort_agent.learning.dd_dqn import DoubleDuelingDQN
 
-from tests.test_learning.test_double_dqn import TestDoubleDQN
-from tests.test_learning.test_dueling_dqn import TestDuelingDQN
+from tests.tests_learning.test_double_dqn import TestDoubleDQN
+from tests.tests_learning.test_dueling_dqn import TestDuelingDQN
 
 # Multiple inheritance: TestDoubleDuelingDQN inherits all tests from BOTH parents
 class TestDoubleDuelingDQN(TestDoubleDQN, TestDuelingDQN):

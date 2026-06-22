@@ -6,7 +6,7 @@ import torch
 
 from collabsort_agent.learning import Config as LearningConfig
 from collabsort_agent.learning.dueling_dqn import DuelingDQN, Dueling_Network
-from tests.test_learning.test_dqn import TestDQN
+from tests.tests_learning.test_dqn import TestDQN
 
 class TestDuelingDQN(TestDQN):
     

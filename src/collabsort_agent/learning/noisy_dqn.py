@@ -8,6 +8,7 @@ import torch.nn.functional as F
 
 from collabsort_agent.learning.dqn import DQN
 
+
 class NoisyLinear(nn.Module):
     """
     Couche linéaire bruitée (Noisy Linear Layer).
@@ -92,17 +93,29 @@ class NoisyQNetwork(nn.Module):
 class NoisyDQN(DQN):
     """Agent DQN qui utilise Noisy Networks au lieu d'Epsilon-Greedy."""
     def __init__(self, config, state_size, n_actions):
+        # 1. On appelle le constructeur parent pour initialiser les structures de base (buffer, device...)
         super().__init__(config, state_size, n_actions)
         
-        # On surcharge les réseaux de la classe mère DQN avec nos réseaux bruités
+        # 2. On instancie proprement les réseaux bruités sur le bon device
         self.q_network = NoisyQNetwork(state_size, n_actions).to(self.device)
         self.target_network = NoisyQNetwork(state_size, n_actions).to(self.device)
         self.target_network.load_state_dict(self.q_network.state_dict())
 
+        # 3. CRUCIAL : On recrée l'optimiseur pour qu'il prenne en compte les vrais paramètres de NoisyQNetwork
+        self.optimizer = torch.optim.Adam(self.q_network.parameters(), lr=self.config.lr)
+
+    def update_action_values(self, state, action, reward, next_state, done) -> None:
+        """Surcharge du cycle d'interaction pour forcer le bruit à changer à chaque pas de temps."""
+        # 1. On applique la logique standard de stockage et d'entraînement DQN
+        super().update_action_values(state, action, reward, next_state, done)
+        
+        # 2. Règle NoisyNet : On ré-échantillonne le bruit après CHAQUE action jouée dans l'environnement
+        self.q_network.reset_noise()
+
     def _optimize_network(self, loss) -> None:
-        # 1. On laisse DQN faire la rétropropagation et la mise à jour des gradients
+        # On laisse DQN faire la rétropropagation
         super()._optimize_network(loss)
         
-        # 2. Règle absolue de NoisyNets : on réinitialise le bruit après CHAQUE étape de gradient
+        # On réinitialise également après chaque optimisation pour casser les corrélations de batch
         self.q_network.reset_noise()
         self.target_network.reset_noise()
