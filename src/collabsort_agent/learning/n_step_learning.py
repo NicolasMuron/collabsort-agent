@@ -19,7 +19,7 @@ class NStepLearning(DQN):  # Hérite de DQN pour réutiliser ses structures
         config: LearningConfig,
         n_actions: int,
         state_size: int,
-        n_step: int = 1,  # Par défaut à 1 pour valider les tests de base de DQN
+        n_step: int = 5,  # Par défaut à 1 pour valider les tests de base de DQN
     ):
         super().__init__(config=config, n_actions=n_actions, state_size=state_size)
         self.n_step = n_step
