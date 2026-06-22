@@ -11,8 +11,8 @@ from collabsort_agent.learning.dqn import DQN
 
 class NoisyLinear(nn.Module):
     """
-    Couche linéaire bruitée (Noisy Linear Layer).
-    Génère son propre bruit interne pour l'exploration autonome.
+    Noisy Linear Layer.
+    Generates its own internal noise for autonomous exploration.
     """
     def __init__(self, in_features: int, out_features: int, std_init: float = 0.5):
         super().__init__()
@@ -20,13 +20,13 @@ class NoisyLinear(nn.Module):
         self.out_features = out_features
         self.std_init = std_init
 
-        # Paramètres entraînés (Moyenne mu et Écart-type sigma)
+        # Trainable parameters (Mean mu and Standard Deviation sigma)
         self.weight_mu = nn.Parameter(torch.empty(out_features, in_features))
         self.weight_sigma = nn.Parameter(torch.empty(out_features, in_features))
         self.bias_mu = nn.Parameter(torch.empty(out_features))
         self.bias_sigma = nn.Parameter(torch.empty(out_features))
 
-        # Buffers PyTorch pour stocker les matrices de bruit aléatoire (non entraînés)
+        # PyTorch buffers to store random noise matrices (non-trainable)
         self.register_buffer("weight_epsilon", torch.empty(out_features, in_features))
         self.register_buffer("bias_epsilon", torch.empty(out_features))
 
@@ -34,7 +34,7 @@ class NoisyLinear(nn.Module):
         self.reset_noise()
 
     def reset_parameters(self):
-        """Initialisation des poids selon Fortunato et al. (2017)."""
+        """Parameter initialization according to Fortunato et al. (2017)."""
         mu_range = 1.0 / math.sqrt(self.in_features)
         self.weight_mu.data.uniform_(-mu_range, mu_range)
         self.weight_sigma.data.fill_(self.std_init / math.sqrt(self.in_features))
@@ -42,26 +42,26 @@ class NoisyLinear(nn.Module):
         self.bias_sigma.data.fill_(self.std_init / math.sqrt(self.out_features))
 
     def _scale_noise(self, size: int) -> torch.Tensor:
-        """Génère un bruit gaussien factorisé."""
+        """Generates factorized Gaussian noise."""
         x = torch.randn(size, device=self.weight_mu.device)
         return x.sign().mul(x.abs().sqrt())
 
     def reset_noise(self):
-        """Ré-échantillonne de nouvelles matrices de bruit pour l'étape actuelle."""
+        """Resamples new random noise matrices for the current step."""
         epsilon_in = self._scale_noise(self.in_features)
         epsilon_out = self._scale_noise(self.out_features)
         
-        # Produit extérieur pour le bruit des poids, vecteur pour le biais
+        # Outer product for weight noise, vector for bias noise
         self.weight_epsilon.copy_(torch.outer(epsilon_out, epsilon_in))
         self.bias_epsilon.copy_(epsilon_out)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.training:
-            # En mode entraînement, on applique le bruit appris
+            # In training mode, apply the learned exploration noise
             weight = self.weight_mu + self.weight_sigma * self.weight_epsilon
             bias = self.bias_mu + self.bias_sigma * self.bias_epsilon
         else:
-            # En mode évaluation (test), le réseau devient déterministe (sans bruit)
+            # In evaluation/test mode, the network becomes deterministic (no noise)
             weight = self.weight_mu
             bias = self.bias_mu
             
@@ -69,13 +69,13 @@ class NoisyLinear(nn.Module):
 
 
 class NoisyQNetwork(nn.Module):
-    """Réseau de neurones Q-Network utilisant des couches NoisyLinear."""
+    """Q-Network architecture using NoisyLinear layers."""
     def __init__(self, input_size: int, output_size: int, hidden_sizes: tuple = (100, 100)):
         super().__init__()
-        # La première couche reste classique pour extraire les features de l'état
+        # The first layer remains standard to extract baseline state features
         self.fc1 = nn.Linear(input_size, hidden_sizes[0])
         
-        # Les couches suivantes sont bruitées pour propager l'exploration en profondeur
+        # Subsequent layers are noisy to propagate exploration in depth
         self.noisy1 = NoisyLinear(hidden_sizes[0], hidden_sizes[1])
         self.noisy2 = NoisyLinear(hidden_sizes[1], output_size)
 
@@ -85,37 +85,37 @@ class NoisyQNetwork(nn.Module):
         return self.noisy2(x)
 
     def reset_noise(self):
-        """Demande aux couches bruitées de générer un nouveau bruit."""
+        """Triggers noisy layers to sample fresh noise matrices."""
         self.noisy1.reset_noise()
         self.noisy2.reset_noise()
 
 
 class NoisyDQN(DQN):
-    """Agent DQN qui utilise Noisy Networks au lieu d'Epsilon-Greedy."""
+    """DQN Agent utilizing Noisy Networks instead of Epsilon-Greedy exploration."""
     def __init__(self, config, state_size, n_actions):
-        # 1. On appelle le constructeur parent pour initialiser les structures de base (buffer, device...)
+        # 1. Call parent constructor to initialize baseline structures (buffer, device...)
         super().__init__(config, state_size, n_actions)
         
-        # 2. On instancie proprement les réseaux bruités sur le bon device
+        # 2. Properly instantiate noisy networks on the correct device
         self.q_network = NoisyQNetwork(state_size, n_actions).to(self.device)
         self.target_network = NoisyQNetwork(state_size, n_actions).to(self.device)
         self.target_network.load_state_dict(self.q_network.state_dict())
 
-        # 3. CRUCIAL : On recrée l'optimiseur pour qu'il prenne en compte les vrais paramètres de NoisyQNetwork
+        # 3. CRUCIAL: Recreate the optimizer to bind to the actual parameters of NoisyQNetwork
         self.optimizer = torch.optim.Adam(self.q_network.parameters(), lr=self.config.lr)
 
     def update_action_values(self, state, action, reward, next_state, done) -> None:
-        """Surcharge du cycle d'interaction pour forcer le bruit à changer à chaque pas de temps."""
-        # 1. On applique la logique standard de stockage et d'entraînement DQN
+        """Override the interaction loop to force noise mutations at every single timestep."""
+        # 1. Apply standard DQN storage and optimization triggers
         super().update_action_values(state, action, reward, next_state, done)
         
-        # 2. Règle NoisyNet : On ré-échantillonne le bruit après CHAQUE action jouée dans l'environnement
+        # 2. NoisyNet rule: Resample noise after EVERY action taken in the environment
         self.q_network.reset_noise()
 
     def _optimize_network(self, loss) -> None:
-        # On laisse DQN faire la rétropropagation
+        # Delegate backpropagation and optimization steps to baseline DQN
         super()._optimize_network(loss)
         
-        # On réinitialise également après chaque optimisation pour casser les corrélations de batch
+        # Resample noise after gradient steps to break temporal batch correlations
         self.q_network.reset_noise()
         self.target_network.reset_noise()
