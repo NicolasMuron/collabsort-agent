@@ -22,16 +22,17 @@ class SumTree:
         self.n_entries = 0
 
     def add(self, priority: float, data: tuple):
+        """Ajoute une transition avec sa priorité initiale."""
         tree_index = self.data_pointer + self.capacity - 1
         self.data[self.data_pointer] = data
         self.update(tree_index, priority)
 
         self.data_pointer += 1
-        if self.data_pointer >= self.capacity:
-            self.data_pointer = 0
+        if self.data_pointer >= self.capacity: self.data_pointer = 0
+        if self.n_entries < self.capacity: self.n_entries += 1
 
-        if self.n_entries < self.capacity:
-            self.n_entries += 1
+    def __len__(self):
+        return self.n_entries
 
     def _propagate(self, idx: int, change: float):
         if idx <= 0: 
@@ -76,17 +77,18 @@ class PER(DQN):
     def __init__(self, config: LearningConfig, n_actions: int, state_size: int) -> None:
         # Initialise DoubleDuelingDQN (qui gère l'init des réseaux Dueling, device, optimizer, etc.)
         super().__init__(config=config, n_actions=n_actions, state_size=state_size)
-
+        
         # Override loss_fn pour éviter la réduction moyenne immédiate (besoin des IS weights element-wise)
         self.loss_fn = nn.SmoothL1Loss(reduction="none") 
 
-        # Initialisation du SumTree à la place du deque (replay_buffer)
+        # ATTENTION : Un seul arbre partagé pour éviter le décalage entre DQN et les tests PER
         self.tree = SumTree(config.replay_buffer_size)
+        self.replay_buffer = self.tree
 
         # Hyperparamètres PER (valeurs alignées sur Schaul et al. 2016, variante "proportional")
         self.per_epsilon = 0.001        # Évite une priorité nulle
         self.per_alpha = 0.6            # Exposant de prioritisation (0.6 recommandé pour proportional)
-        self.per_beta = 0.8             # Importance Sampling weight initial
+        self.per_beta = 0.4             # Importance Sampling weight initial
         self.ratio = 1.0                # Atteint 1 au dernier step
         self.n_steps = self.config.n_episodes * self.config.n_steps_episode * self.ratio  # Nombre total de steps pour l'augmentation progressive de β
         self.per_beta_increment = (1 - self.per_beta) / self.n_steps  # Augmentation progressive vers 1.0
@@ -112,15 +114,18 @@ class PER(DQN):
         next_state: np.ndarray,
         done: bool = False,
     ) -> None:
-        """Override la méthode de stockage pour utiliser le SumTree avec la priorité maximale.
+        """Override la méthode de stockage pour utiliser le SumTree avec la priorité maximale."""
+        # Calcul de la priorité max dynamique parmi les éléments insérés pour éviter les NaN
+        if self.tree.n_entries == 0:
+            max_priority = 1.0
+        else:
+            start_idx = self.tree.capacity - 1
+            end_idx = start_idx + self.tree.n_entries
+            max_priority = np.max(self.tree.tree[start_idx:end_idx])
+            if max_priority == 0:
+                max_priority = 1.0
 
-        Le reward est clippé dans [-1, 1] comme dans le papier original (Section 4),
-        pour éviter que des transitions à forte récompense (ex: +8 ou -10 dans notre env)
-        ne dominent excessivement la distribution de priorités du SumTree.
-        """
-        #reward_clipped = float(np.clip(reward, -self.per_clip_value, self.per_clip_value))
-        #max_priority = self.tree.tree.max() if self.tree.n_entries > 0 else 1.0
-        max_priority = 1
+        # CHANGEMENT : On pousse directement dans self.tree
         self.tree.add(max_priority, (state, action, reward, next_state, done))
 
     def _sample(self) -> tuple[list, list, np.ndarray]:
@@ -177,51 +182,29 @@ class PER(DQN):
         return minibatch, idxs, is_weights        
 
     def _learn(self) -> None:
-        """Version surchargée de _learn intégrant la pondération par IS weights et la mise à jour de l'arbre."""
+        """Version surchargée et ultra-factorisée utilisant les fonctions de la classe mère."""
         if self.tree.n_entries < self.config.batch_size:
             return
 
+        # 1. Échantillonnage spécifique PER
         batch, idxs, is_weights = self._sample()
-        states, actions, rewards, next_states, dones = zip(*batch, strict=True)
-
-        # Préparation des tenseurs
-        states = torch.from_numpy(np.array(states, dtype=np.float32)).to(self.device)
-        actions = torch.tensor(actions, dtype=torch.long, device=self.device).unsqueeze(1)
-        rewards = torch.tensor(rewards, dtype=torch.float32, device=self.device)
-        next_states = torch.from_numpy(np.array(next_states, dtype=np.float32)).to(self.device)
-        dones = torch.tensor(dones, dtype=torch.float32, device=self.device)
+        
+        # 2. On laisse DQN faire la préparation des tenseurs standard
+        tensors = self._prepare_tensors(batch) 
         is_weights_t = torch.tensor(is_weights, dtype=torch.float32, device=self.device)
 
-        actions = torch.clamp(actions, 0, self.n_actions - 1)
-
-        # Q-values courantes
-        q_values = self.q_network(states).gather(1, actions).squeeze(1)
-        self.mean_q_values.append(torch.mean(q_values).item())
-
-        # Calcul des targets en réutilisant la règle de DoubleDQN (_get_next_q_values)
-        with torch.no_grad():
-            q_next = self._get_next_q_values(next_states)
-            q_target = rewards + self.config.gamma * q_next * (1 - dones)
-
-        # Perte pondérée par les IS weights
+        # 3. Calcul de la perte element-wise pondérée par les IS weights
+        q_values, q_target = self._compute_q_values_and_targets(tensors)
         elementwise_loss = self.loss_fn(q_values, q_target)
         loss = (is_weights_t * elementwise_loss).mean()
-        self.losses.append(loss.item())
+        
+        # 4. Optimisation standard héritée
+        self._optimize_network(loss)
 
-        # Backpropagation & Optimisation
-        self.optimizer.zero_grad()
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.q_network.parameters(), max_norm=10.0)
-        self.optimizer.step()
-
-        # Mise à jour des priorités dans le SumTree avec les nouvelles erreurs TD.
-        # Clipping dans [-1, 1] comme dans le papier original, pour éviter qu'une
-        # transition à erreur TD extrême ne domine totalement le SumTree.
+        # 5. Spécificité PER : Mise à jour de l'arbre
         td_errors = (q_target - q_values).abs().detach().cpu().numpy()
         for idx, error in zip(idxs, td_errors):
             self.tree.update(idx, self._get_priority(error))
 
-        # Synchronisation du réseau cible (Target Network)
-        self.learning_step += 1
-        if self.learning_step % self.config.target_network_sync_freq == 0:
-            self.target_network.load_state_dict(self.q_network.state_dict())
+        # 6. Synchronisation héritée
+        self._handle_target_sync()
