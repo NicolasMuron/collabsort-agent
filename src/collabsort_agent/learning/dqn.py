@@ -53,7 +53,6 @@ class QNetwork(nn.Module):
         return self.net(x)
     
 
-# --- NOUVEAU BUFFER ISOLÉ ---
 class UniformReplayBuffer:
     """Mémoire tampon classique à échantillonnage uniforme (FIFO)."""
     def __init__(self, capacity: int):
@@ -156,16 +155,23 @@ class DQN(ActionValueEstimator):
             return self.target_network(next_states).max(1)[0]   
         
     def _prepare_tensors(self, batch: list) -> tuple:
-        """Prépare et convertit un batch de transitions en tenseurs PyTorch."""
-        states, actions, rewards, next_states, dones = zip(*batch, strict=True)
+        """Prépare et convertit un batch de transitions (5 ou 6 éléments) en tenseurs PyTorch."""
+        # Déballe dynamiquement selon la taille du tuple
+        unzipped = list(zip(*batch, strict=True))
+        states, actions, rewards, next_states, dones = unzipped[:5]
 
         states = torch.from_numpy(np.array(states, dtype=np.float32)).to(self.device)
         actions = torch.tensor(actions, dtype=torch.long, device=self.device).unsqueeze(1)
         rewards = torch.tensor(rewards, dtype=torch.float32, device=self.device)
         next_states = torch.from_numpy(np.array(next_states, dtype=np.float32)).to(self.device)
         dones = torch.tensor(dones, dtype=torch.float32, device=self.device)
-
         actions = torch.clamp(actions, 0, self.n_actions - 1)
+
+        # Si le batch contient le actual_n du n-step learning
+        if len(unzipped) == 6:
+            actual_ns = torch.tensor(unzipped[5], dtype=torch.float32, device=self.device)
+            return states, actions, rewards, next_states, dones, actual_ns
+
         return states, actions, rewards, next_states, dones
 
     def _optimize_network(self, loss: torch.Tensor) -> None:
@@ -177,7 +183,7 @@ class DQN(ActionValueEstimator):
         self.optimizer.step()
 
     def _handle_target_sync(self) -> None:
-        """Gère la synchronisation périodique du réseau cible (Target Network)."""
+        """Periodically sync the target network with the online network."""
         self.learning_step += 1
         if self.learning_step % self.config.target_network_sync_freq == 0:
             self.target_network.load_state_dict(self.q_network.state_dict())  
@@ -186,13 +192,17 @@ class DQN(ActionValueEstimator):
         """Calcule les Q-values courantes et les cibles TD (Partagé DQN / PER)."""
         states, actions, rewards, next_states, dones = tensors
 
-        # Calcul des Q-values courantes
+        # Compute action values for the current states
         q_values = self.q_network(states).gather(1, actions).squeeze(1)
         self.mean_q_values.append(torch.mean(q_values).item())
 
-        # Calcul des Q-values cibles (Vanilla ou Double selon la stratégie choisie)
+        # Using target_network (not q_network) to compute Q-targets.
+        # Using q_network here would defeat the purpose of the target network: the
+        # same network would be used both to generate targets and to be updated,
+        # creating a moving-target problem that destabilises training.
         with torch.no_grad():
             q_next = self._get_next_q_values(next_states)
+            # Q_target = r + gamma * max_a' Q_target(s', a') * (1 - done)
             q_target = rewards + self.config.gamma * q_next * (1 - dones)
             
         return q_values, q_target  
@@ -206,16 +216,21 @@ class DQN(ActionValueEstimator):
         # Sample a batch of past experiences from replay buffer
         (states, actions, rewards, next_states, dones), _, _ = self.replay_buffer.sample(self.config.batch_size)
         
+        # Sample a batch of past experiences from replay buffer
         batch = list(zip(states, actions, rewards, next_states, dones))
         
+        # Obtain PyTorch tensors from NumPy arrays.
         tensors = self._prepare_tensors(batch)
         
+        # Compute action values for the current states
         q_values, q_target = self._compute_q_values_and_targets(tensors)
         
         loss = self.loss_fn(q_values, q_target)
         
+        # Update Q-network parameters through a gradient descent step
         self._optimize_network(loss)
         
+        # Periodically sync the target network with the online network.
         self._handle_target_sync()
 
 

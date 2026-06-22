@@ -2,6 +2,7 @@
 N-step learning algorithm
 """
 from pathlib import Path
+import random
 import numpy as np
 import torch
 import torch.nn as nn
@@ -18,7 +19,7 @@ class NStepLearning(DQN):  # Inherit from DQN to reuse its methods and attribute
         config: LearningConfig,
         n_actions: int,
         state_size: int,
-        n_step: int = 10,  # Default to 3-step learning
+        n_step: int = 10,  # Default to 10-step learning
     ):
         super().__init__(config=config, n_actions=n_actions, state_size=state_size)
         self.n_step = n_step
@@ -66,45 +67,27 @@ class NStepLearning(DQN):  # Inherit from DQN to reuse its methods and attribute
         if len(self.replay_buffer) < self.config.batch_size:
             return
 
-        # Sample a batch of past experiences (now including actual_n)
-        import random
+        # 1. Échantillonnage uniforme depuis la liste standard
         batch = random.sample(self.replay_buffer, self.config.batch_size)
-        states, actions, rewards, next_states, dones, actual_ns = zip(*batch, strict=True)
 
-        # Convert lists to PyTorch tensors
-        states = torch.from_numpy(np.array(states, dtype=np.float32)).to(self.device)
-        actions = torch.tensor(actions, dtype=torch.long, device=self.device).unsqueeze(1)
-        rewards = torch.tensor(rewards, dtype=torch.float32, device=self.device)
-        next_states = torch.from_numpy(np.array(next_states, dtype=np.float32)).to(self.device)
-        dones = torch.tensor(dones, dtype=torch.float32, device=self.device)
-        
-        # Tensor pour les n-steps spécifiques à chaque transition du batch
-        actual_ns = torch.tensor(actual_ns, dtype=torch.float32, device=self.device)
+        # 2. Préparation des tenseurs via la méthode partagée améliorée de DQN
+        states, actions, rewards, next_states, dones, actual_ns = self._prepare_tensors(batch)
 
-        actions = torch.clamp(actions, 0, self.n_actions - 1)
-
-        # Compute action values for the current states
+        # 3. Calcul des Q-values courantes
         q_values = self.q_network(states).gather(1, actions).squeeze(1)
         self.mean_q_values.append(torch.mean(q_values).item())
 
-        # Compute the next state action-values according to the Double DQN strategy
+        # 4. Calcul de la cible de Bellman N-step (spécificité mathématique ici)
         with torch.no_grad():
             q_next = self._get_next_q_values(next_states)
-            
-            # CORRECTION : On applique un gamma dynamique propre à chaque échantillon du batch
             gamma_corrected = self.config.gamma ** actual_ns
             q_target = rewards + gamma_corrected * q_next * (1 - dones)
 
+        # 5. Calcul de la perte
         loss = self.loss_fn(q_values, q_target)
-        self.losses.append(loss.item())
 
-        # Update Q-network parameters
-        self.optimizer.zero_grad()
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.q_network.parameters(), max_norm=10.0)
-        self.optimizer.step()
+        # 6. Optimisation héritée de DQN
+        self._optimize_network(loss)
 
-        # Periodically sync the target network
-        self.learning_step += 1
-        if self.learning_step % self.config.target_network_sync_freq == 0:
-            self.target_network.load_state_dict(self.q_network.state_dict())
+        # 7. Synchronisation héritée de DQN
+        self._handle_target_sync()
