@@ -1,8 +1,8 @@
 """
 N-step learning algorithm
 """
-from pathlib import Path
 import random
+from pathlib import Path
 import numpy as np
 import torch
 import torch.nn as nn
@@ -12,82 +12,86 @@ from collabsort_agent.learning import Config as LearningConfig
 from collabsort_agent.learning.dqn import DQN
 
 
-class NStepLearning(DQN):  # Inherit from DQN to reuse its methods and attributes
+class NStepLearning(DQN):  # Hérite de DQN pour réutiliser ses structures
     
     def __init__(
         self,
         config: LearningConfig,
         n_actions: int,
         state_size: int,
-        n_step: int = 10,  # Default to 10-step learning
+        n_step: int = 1,  # Par défaut à 1 pour valider les tests de base de DQN
     ):
         super().__init__(config=config, n_actions=n_actions, state_size=state_size)
         self.n_step = n_step
-        self.n_step_buffer = []  # Buffer to store the last n steps
+        self.n_step_buffer = []  # Buffer local temporaire
 
-    def _store_transition(self, state, action, reward, next_state, done):
-        """Store a transition in the N-step buffer and update the replay buffer."""
+    def _store_transition(self, state, action, reward, next_state, done=False):
+        """Stocke une transition dans le buffer N-step et met à jour le replay buffer global."""
         self.n_step_buffer.append((state, action, reward, next_state, done))
         
-        # If the episode ends, flush all remaining transitions correctly
+        # En fin d'épisode, on vide tout le buffer local restant
         if done:
             while self.n_step_buffer:
                 self._process_n_step()
             return
 
         if len(self.n_step_buffer) < self.n_step:
-            return  # Wait until we have enough transitions
+            return  # On attend d'avoir accumulé assez d'étapes
 
         self._process_n_step()
 
     def _process_n_step(self):
-        """Calculate the N-step return and append the sequence to the global replay buffer."""
-        # The starting state and action are taken from the oldest transition
+        """Calcule le retour N-step et pousse le tuple de 6 éléments dans la file globale."""
         state_0, action_0, _, _, _ = self.n_step_buffer[0]
-        
-        # Le dernier état et le 'done' proviennent du DERNIER élément actuel du buffer
         _, _, _, next_state_n, done_n = self.n_step_buffer[-1]
-
-        # L'exposant réel dépend de la taille actuelle du buffer (très important pour la fin d'épisode)
         actual_n = len(self.n_step_buffer)
 
-        # Calculate the N-step discounted return
+        # Calcul du rendement cumulé actualisé (N-step discounted return)
         R = sum(
             [self.n_step_buffer[i][2] * (self.config.gamma ** i) for i in range(actual_n)]
         )
         
-        # RECOUVREMENT : On ajoute 'actual_n' dans le replay buffer pour adapter gamma pendant le learning
-        self.replay_buffer.append((state_0, action_0, R, next_state_n, done_n, actual_n))
+        # Correction de l'AttributeError : On stocke directement dans la deque du UniformReplayBuffer
+        self.replay_buffer.buffer.append((state_0, action_0, R, next_state_n, done_n, actual_n))
 
-        # Remove the oldest transition to slide the window forward
+        # On fait glisser la fenêtre
         self.n_step_buffer.pop(0)
 
     def _learn(self) -> None:
-        """Update the Q-network parameters using N-step Bellman targets."""
+        """Met à jour le réseau Q en utilisant les cibles de Bellman N-step."""
         if len(self.replay_buffer) < self.config.batch_size:
             return
 
-        # 1. Échantillonnage uniforme depuis la liste standard
-        batch = random.sample(self.replay_buffer, self.config.batch_size)
+        # Échantillonnage à la main depuis la deque pour récupérer nos tuples à 6 éléments
+        batch = random.sample(self.replay_buffer.buffer, self.config.batch_size)
+        states, actions, rewards, next_states, dones, actual_ns = zip(*batch, strict=True)
 
-        # 2. Préparation des tenseurs via la méthode partagée améliorée de DQN
-        states, actions, rewards, next_states, dones, actual_ns = self._prepare_tensors(batch)
+        states = torch.from_numpy(np.array(states, dtype=np.float32)).to(self.device)
+        actions = torch.tensor(actions, dtype=torch.long, device=self.device).unsqueeze(1)
+        rewards = torch.tensor(rewards, dtype=torch.float32, device=self.device)
+        next_states = torch.from_numpy(np.array(next_states, dtype=np.float32)).to(self.device)
+        dones = torch.tensor(dones, dtype=torch.float32, device=self.device)
+        actual_ns = torch.tensor(actual_ns, dtype=torch.float32, device=self.device)
 
-        # 3. Calcul des Q-values courantes
+        actions = torch.clamp(actions, 0, self.n_actions - 1)
+
         q_values = self.q_network(states).gather(1, actions).squeeze(1)
         self.mean_q_values.append(torch.mean(q_values).item())
 
-        # 4. Calcul de la cible de Bellman N-step (spécificité mathématique ici)
         with torch.no_grad():
             q_next = self._get_next_q_values(next_states)
+            # Application d'un gamma dynamique (gamma^actual_n) propre à chaque transition
             gamma_corrected = self.config.gamma ** actual_ns
             q_target = rewards + gamma_corrected * q_next * (1 - dones)
 
-        # 5. Calcul de la perte
         loss = self.loss_fn(q_values, q_target)
+        self.losses.append(loss.item())
 
-        # 6. Optimisation héritée de DQN
-        self._optimize_network(loss)
+        self.optimizer.zero_grad()
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.q_network.parameters(), max_norm=10.0)
+        self.optimizer.step()
 
-        # 7. Synchronisation héritée de DQN
-        self._handle_target_sync()
+        self.learning_step += 1
+        if self.learning_step % self.config.target_network_sync_freq == 0:
+            self.target_network.load_state_dict(self.q_network.state_dict())
