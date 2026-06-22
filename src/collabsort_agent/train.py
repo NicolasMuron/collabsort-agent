@@ -239,13 +239,6 @@ def train(config: Config) -> None:
     env.close()
 
     if config.save_state:
-        # Si le réseau de l'agent possède la méthode eval(), on l'active.
-        # Cela désactive le bruit de NoisyNet juste avant la sauvegarde finale.
-        if hasattr(agent.deliberator.estimator, "q_network"):
-            agent.deliberator.estimator.q_network.eval()
-            if hasattr(agent.deliberator.estimator, "target_network"):
-                agent.deliberator.estimator.target_network.eval()
-
         agent.save_state(dir=train_dir)
         save_cfg(config=config, dir=train_dir)
 
