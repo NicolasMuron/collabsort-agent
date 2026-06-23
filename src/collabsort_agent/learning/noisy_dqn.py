@@ -14,7 +14,7 @@ class NoisyLinear(nn.Module):
     Noisy Linear Layer.
     Generates its own internal noise for autonomous exploration.
     """
-    def __init__(self, in_features: int, out_features: int, std_init: float = 0.5):
+    def __init__(self, in_features: int, out_features: int, std_init: float = 1):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
