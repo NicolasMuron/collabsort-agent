@@ -50,4 +50,5 @@ jobs:
         run: uvx ty check
 
       - name: Run tests
+        working-directory: agent
         run: uv run pytest
