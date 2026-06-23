@@ -10,5 +10,5 @@ class DoubleDuelingDQN(DoubleDQN):
     Inherits the DoubleDQN calculation rule and overrides the network with Dueling_Network.
     """
     def build_network(self):
-        """Injecte l'architecture Dueling."""
+        """Inject the Dueling architecture."""
         return Dueling_Network(state_size=self.state_size, action_size=self.n_actions)
