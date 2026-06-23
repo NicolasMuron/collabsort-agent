@@ -88,7 +88,7 @@ class ActionValueEstimator(ABC):
             tag="learning/mean_q_value",
             scalar_value=mean(self.mean_q_values),
             global_step=episode,
-        )     
+        )
 
         # Reset episode data
         self.losses.clear()

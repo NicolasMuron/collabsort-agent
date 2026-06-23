@@ -84,10 +84,10 @@ class DQN(ActionValueEstimator):
 
         # Step counter used to decide when to sync the target network
         self.learning_step: int = 0
-        
+
     def build_network(self) -> nn.Module:
         """Default Network (Vanilla / Double)."""
-        return QNetwork(input_size=self.state_size, output_size=self.n_actions) 
+        return QNetwork(input_size=self.state_size, output_size=self.n_actions)
 
     def get_action_values(self, state: np.ndarray) -> np.ndarray:
         # Convert NumPy array to PyTorch tensor

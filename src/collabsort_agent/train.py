@@ -68,7 +68,7 @@ def create_agent(config: Config, sample_obs: dict, rng: np.random.Generator) -> 
             n_actions=n_actions,
             state_size=extended_state_size,
         )
-    elif config.learning.algorithm == "dueling_dqn":    
+    elif config.learning.algorithm == "dueling_dqn":
         estimator = DuelingDQN(
             config=config.learning,
             n_actions=n_actions,
