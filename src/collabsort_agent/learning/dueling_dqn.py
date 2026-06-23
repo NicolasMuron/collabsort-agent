@@ -4,7 +4,6 @@ Dueling DQN algorithm
 
 import torch
 import torch.nn as nn
-import torch.optim as optim
 
 from collabsort_agent.learning.dqn import DQN
 
