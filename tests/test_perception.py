@@ -18,7 +18,7 @@ def make_perceiver(
     env_config = EnvConfig(n_objects=n_objects)
     perceiver = Perceiver(
         config=PerceptionConfig(n_perceived_cols=n_perceived_cols),
-        treadmill_rows=[env_config.upper_treadmill_row, env_config.lower_treadmill_row],
+        treadmill_rows=env_config.treadmill_rows,
     )
     return perceiver, env_config
 
