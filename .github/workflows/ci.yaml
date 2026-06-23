@@ -1,0 +1,41 @@
+name: Continuous Integration tests
+
+on:
+  # Trigger the jobs on each push or PR merge to main branch
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  ci-tests:
+    name: CI tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+
+      - name: Install uv with caching enabled
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install the project
+        run: uv sync --locked --all-extras --dev
+
+      - name: Run linting
+        run: uvx ruff check
+
+      - name: Check code formatting
+        run: uvx ruff format --check
+
+      - name: Run type checking
+        run: uvx ty check
+
+      - name: Run tests
+        run: uv run pytest
