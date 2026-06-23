@@ -86,7 +86,7 @@ class DQN(ActionValueEstimator):
         self.learning_step: int = 0
         
     def build_network(self) -> nn.Module:
-        """Réseau par défaut (Vanilla / Double)."""
+        """Default Network (Vanilla / Double)."""
         return QNetwork(input_size=self.state_size, output_size=self.n_actions) 
 
     def get_action_values(self, state: np.ndarray) -> np.ndarray:
