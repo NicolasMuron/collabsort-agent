@@ -6,23 +6,27 @@ from collabsort_agent.learning.n_step_learning import NStepLearning
 
 
 class TestNStepLearning(TestDQN):  # Inherit from TestDQN to test DQN compliance
-    def _make_dqn(self, **kwargs) -> NStepLearning:
+    def _make_dqn(
+        self,
+        n_actions: int = 4,
+        state_size: int = 5,
+        batch_size: int = 4,
+        replay_buffer_size: int = 100,
+        target_sync_freq: int = 500,
+        n_step: int = 1,  # Ajout de l'argument spécifique avec sa valeur par défaut
+    ) -> NStepLearning:
         """Factory method override to inject NStepLearning instead of standard DQN."""
         config = LearningConfig(
-            batch_size=kwargs.get("batch_size", 32),
-            replay_buffer_size=kwargs.get("replay_buffer_size", 1000),
-            target_network_sync_freq=kwargs.get("target_sync_freq", 100),
+            batch_size=batch_size,
+            replay_buffer_size=replay_buffer_size,
+            target_network_sync_freq=target_sync_freq,
             gamma=0.99,
         )
 
-        # Default to 1 so that inherited tests (standard DQN behavior) pass.
-        # But if the test explicitly requests another value, we apply it.
-        n_step = kwargs.get("n_step", 1)
-
         agent = NStepLearning(
             config=config,
-            n_actions=kwargs.get("n_actions", 4),
-            state_size=kwargs.get("state_size", 5),
+            n_actions=n_actions,
+            state_size=state_size,
             n_step=n_step,
         )
         agent.losses = []
@@ -33,7 +37,7 @@ class TestNStepLearning(TestDQN):  # Inherit from TestDQN to test DQN compliance
     # N-STEP LEARNING SPECIFIC TESTS
     # -------------------------------------------------------------------------
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Verify N-step specific initialization attributes."""
         agent = self._make_dqn(n_step=5)
         assert agent.n_step == 5
@@ -43,7 +47,6 @@ class TestNStepLearning(TestDQN):  # Inherit from TestDQN to test DQN compliance
         """Verify the global replay buffer update delay specifically for N=5."""
         state = np.zeros(5, dtype=np.float32)
 
-        # Force n_step=5 here
         dqn = self._make_dqn(replay_buffer_size=10, n_step=5)
 
         # The first 4 transitions fill the local buffer, nothing goes to the global buffer
@@ -56,7 +59,7 @@ class TestNStepLearning(TestDQN):  # Inherit from TestDQN to test DQN compliance
         dqn._store_transition(state=state, action=0, reward=1.0, next_state=state)
         assert len(dqn.replay_buffer) == 1
 
-    def test_store_transition_fills_buffer_with_n3(self):
+    def test_store_transition_fills_buffer_with_n3(self) -> None:
         """Verify the exact mathematical calculation of discounted rewards for N=3."""
         agent = self._make_dqn(n_step=3)
         state = np.zeros(5, dtype=np.float32)
@@ -72,7 +75,7 @@ class TestNStepLearning(TestDQN):  # Inherit from TestDQN to test DQN compliance
         expected_R = 1.0 + (0.99 * 2.0) + (0.99**2 * 3.0)
         assert pytest.approx(stored[2]) == expected_R
 
-    def test_store_transition_done_flushes_buffer(self):
+    def test_store_transition_done_flushes_buffer(self) -> None:
         """Verify that done=True forces an immediate flush even if N=5."""
         agent = self._make_dqn(n_step=5)
         state = np.zeros(5, dtype=np.float32)

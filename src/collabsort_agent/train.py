@@ -48,32 +48,31 @@ def _build_estimator(
     meta_ctrl: MetaController,
 ):
     """Factory helper to build the value estimator dynamically."""
-    # Mapping table for learners that share the standard (config, n_actions, state_size) signature
-    LEARNER_MAPPING = {
-        "dqn": DQN,
-        "dueling_dqn": DuelingDQN,
-        "ddqn": DoubleDQN,
-        "dd_dqn": DoubleDuelingDQN,
-        "per": PER,
-        "n_step": NStepLearning,
-        "noisy": NoisyDQN,
-    }
+    c_learn = config.learning
 
     if algo_name == "ql":
-        return Qlearning(
-            config=config.learning, n_actions=n_actions, meta_ctrl=meta_ctrl
+        return Qlearning(config=c_learn, n_actions=n_actions, meta_ctrl=meta_ctrl)
+    elif algo_name == "dqn":
+        return DQN(config=c_learn, n_actions=n_actions, state_size=state_size)
+    elif algo_name == "dueling_dqn":
+        return DuelingDQN(config=c_learn, n_actions=n_actions, state_size=state_size)
+    elif algo_name == "ddqn":
+        return DoubleDQN(config=c_learn, n_actions=n_actions, state_size=state_size)
+    elif algo_name == "dd_dqn":
+        return DoubleDuelingDQN(
+            config=c_learn, n_actions=n_actions, state_size=state_size
         )
-
-    if algo_name in LEARNER_MAPPING:
-        builder_kwargs = {
-            "config": config.learning,
-            "n_actions": n_actions,
-            "state_size": state_size,
-        }
-        if algo_name == "n_step":
-            builder_kwargs["n_step"] = config.learning.n_step
-
-        return LEARNER_MAPPING[algo_name](**builder_kwargs)
+    elif algo_name == "per":
+        return PER(config=c_learn, n_actions=n_actions, state_size=state_size)
+    elif algo_name == "n_step":
+        return NStepLearning(
+            config=c_learn,
+            n_actions=n_actions,
+            state_size=state_size,
+            n_step=c_learn.n_step,
+        )
+    elif algo_name == "noisy":
+        return NoisyDQN(config=c_learn, n_actions=n_actions, state_size=state_size)
 
     raise ValueError(f"Unrecognized learning algorithm: {algo_name}")
 

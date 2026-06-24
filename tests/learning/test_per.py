@@ -4,6 +4,7 @@ Unit tests for the PER (Prioritized Experience Replay) algorithm and SumTree.
 
 import numpy as np
 import torch
+from typing import Any
 
 from collabsort_agent.learning import Config as LearningConfig
 from collabsort_agent.learning.per import PER, SumTree
@@ -46,34 +47,41 @@ class TestSumTree:
         capacity = 4
         tree = SumTree(capacity=capacity)
         tree.add(
-            priority=1.0, data="data1"
+            priority=1.0, data=("data1",)
         )  # leaf index 3, cumulative priority range [0, 1]
         tree.add(
-            priority=2.0, data="data2"
+            priority=2.0, data=("data2",)
         )  # leaf index 4, cumulative priority range [1, 3]
 
         # Searching inside the cumulative tree ranges
         idx, p, data = tree.get_leaf(0.5)
-        assert data == "data1"
+        assert data == ("data1",)
         assert p == 1.0
 
         idx, p, data = tree.get_leaf(2.5)
-        assert data == "data2"
+        assert data == ("data2",)
         assert p == 2.0
 
 
 class TestPER(TestDQN):
-    def _make_dqn(self, **kwargs) -> PER:
+    def _make_dqn(
+        self,
+        n_actions: int = 4,
+        state_size: int = 5,
+        batch_size: int = 4,
+        replay_buffer_size: int = 100,
+        target_sync_freq: int = 500,
+    ) -> PER:
         """Factory method override to inject PER instead of standard DQN."""
         config = LearningConfig(
-            batch_size=kwargs.get("batch_size", 32),
-            replay_buffer_size=kwargs.get("replay_buffer_size", 1000),
-            target_network_sync_freq=kwargs.get("target_sync_freq", 100),
+            batch_size=batch_size,
+            replay_buffer_size=replay_buffer_size,
+            target_network_sync_freq=target_sync_freq,
         )
         agent = PER(
             config=config,
-            n_actions=kwargs.get("n_actions", 4),
-            state_size=kwargs.get("state_size", 5),
+            n_actions=n_actions,
+            state_size=state_size,
         )
         agent.losses = []
         agent.mean_q_values = []
@@ -130,12 +138,12 @@ class TestPER(TestDQN):
     def test_sum_tree_get_leaf_loop_termination(self) -> None:
         """Covers the binary search traversal logic down to a leaf node."""
         tree = SumTree(capacity=2)
-        tree.add(priority=5.0, data="left")
-        tree.add(priority=10.0, data="right")
+        tree.add(priority=5.0, data=("left",))
+        tree.add(priority=10.0, data=("right",))
 
         # Requesting priority inside the right-hand cumulative range
         idx, p, data = tree.get_leaf(12.0)
-        assert data == "right"
+        assert data == ("right",)
         assert p == 10.0
 
     def test_per_sample_invalid_data_loop_resampling(self) -> None:
@@ -145,8 +153,10 @@ class TestPER(TestDQN):
 
         agent.tree.add(priority=5.0, data=("state1", 0, 0.0, "next_state1", False))
 
-        # Inject an invalid non-tuple object at data index 0 to trigger resampling loop
-        agent.tree.data[0] = 0
+        # Correction : Cast ou assignation d'un objet Any pour simuler une donnée corrompue
+        # sans déclencher une erreur statique immédiate du typeur
+        invalid_data: Any = 0
+        agent.tree.data[0] = invalid_data
 
         minibatch, idxs, is_weights = agent._sample()
         assert len(minibatch) == 1

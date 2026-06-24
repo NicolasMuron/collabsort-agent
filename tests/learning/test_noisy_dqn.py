@@ -22,19 +22,35 @@ class TestNoisyComponents:
         assert layer.weight_sigma.shape == (out_features, in_features)
         assert layer.bias_mu.shape == (out_features,)
         assert layer.bias_sigma.shape == (out_features,)
-        assert layer.weight_epsilon.shape == (out_features, in_features)
-        assert layer.bias_epsilon.shape == (out_features,)
+
+        w_eps = getattr(layer, "weight_epsilon")
+        b_eps = getattr(layer, "bias_epsilon")
+        assert isinstance(w_eps, torch.Tensor)
+        assert isinstance(b_eps, torch.Tensor)
+        assert w_eps.shape == (out_features, in_features)
+        assert b_eps.shape == (out_features,)
 
     def test_reset_noise_changes_values(self) -> None:
         """Ensure reset_noise effectively samples brand new random epsilon tensors."""
         layer = NoisyLinear(in_features=4, out_features=2)
-        initial_weight_eps = layer.weight_epsilon.clone()
-        initial_bias_eps = layer.bias_epsilon.clone()
+
+        w_eps = getattr(layer, "weight_epsilon")
+        b_eps = getattr(layer, "bias_epsilon")
+        assert isinstance(w_eps, torch.Tensor)
+        assert isinstance(b_eps, torch.Tensor)
+
+        initial_weight_eps = w_eps.clone()
+        initial_bias_eps = b_eps.clone()
 
         layer.reset_noise()
 
-        assert not torch.equal(layer.weight_epsilon, initial_weight_eps)
-        assert not torch.equal(layer.bias_epsilon, initial_bias_eps)
+        w_eps_new = getattr(layer, "weight_epsilon")
+        b_eps_new = getattr(layer, "bias_epsilon")
+        assert isinstance(w_eps_new, torch.Tensor)
+        assert isinstance(b_eps_new, torch.Tensor)
+
+        assert not torch.equal(w_eps_new, initial_weight_eps)
+        assert not torch.equal(b_eps_new, initial_bias_eps)
 
     def test_forward_pass_modes(self) -> None:
         """Verify that train mode activates exploration noise while eval mode disables it."""
@@ -62,20 +78,27 @@ class TestNoisyDQN(TestDQN):
     Surcharges the baseline tests flawed by individual layer noise buffers.
     """
 
-    def _make_dqn(self, **kwargs) -> NoisyDQN:
+    def _make_dqn(
+        self,
+        n_actions: int = 4,
+        state_size: int = 5,
+        batch_size: int = 32,
+        replay_buffer_size: int = 1000,
+        target_sync_freq: int = 100,
+        lr: float = 1e-2,
+    ) -> NoisyDQN:
         """Factory method override to instantiate NoisyDQN instead of classic DQN."""
-        # On passe de manière transparente les arguments demandés par les tests parents
         config = LearningConfig(
-            lr=kwargs.get("lr", 1e-2),
-            batch_size=kwargs.get("batch_size", 32),
-            replay_buffer_size=kwargs.get("replay_buffer_size", 1000),
-            target_network_sync_freq=kwargs.get("target_sync_freq", 100),
+            lr=lr,
+            batch_size=batch_size,
+            replay_buffer_size=replay_buffer_size,
+            target_network_sync_freq=target_sync_freq,
         )
 
         agent = NoisyDQN(
             config=config,
-            n_actions=kwargs.get("n_actions", 4),
-            state_size=kwargs.get("state_size", 5),
+            n_actions=n_actions,
+            state_size=state_size,
         )
 
         agent.losses = []
@@ -84,7 +107,6 @@ class TestNoisyDQN(TestDQN):
 
     def test_replay_buffer_size(self) -> None:
         """Surcharge pour laisser le test d'origine s'exécuter avec ses paramètres exacts."""
-        # On délègue entièrement au comportement de la classe mère sans forcer de conflits de batch_size
         super().test_replay_buffer_size()
 
     def test_target_network_syncs(self) -> None:
@@ -94,17 +116,13 @@ class TestNoisyDQN(TestDQN):
         """
         agent = self._make_dqn(target_sync_freq=1)
 
-        # Simulation d'un ajout suffisant pour déclencher l'apprentissage et la copie cible
         state = np.random.randn(5).astype(np.float32)
         action = 0
         next_state = np.random.randn(5).astype(np.float32)
 
-        # On remplit au moins pour atteindre le batch_size initial de l'agent
         for _ in range(agent.config.batch_size + 1):
             agent.update_action_values(state, action, 1.0, next_state, done=False)
 
-        # Règle de validation pour les NoisyNets : On compare les poids sous-jacents (appris)
-        # et non pas les états des buffers de bruit instables (epsilon)
         for p_online, p_target in zip(
             agent.q_network.parameters(), agent.target_network.parameters()
         ):
@@ -119,22 +137,17 @@ class TestNoisyDQN(TestDQN):
         """
         agent = self._make_dqn(lr=1e-2)
 
-        # Prendre l'état initial des poids (copie profonde)
         init_weights = [p.clone() for p in agent.q_network.parameters()]
 
-        # 1. Simuler un passage vers l'avant (Forward) pour générer des gradients
         dummy_state = torch.randn(1, 5).to(agent.device)
         q_values = agent.q_network(dummy_state)
 
-        # 2. Créer une Loss fictive et calculer les gradients (Backward)
         loss = q_values.sum()
         agent.optimizer.zero_grad()
         loss.backward()
 
-        # 3. Appliquer l'optimisation (Step)
         agent.optimizer.step()
 
-        # Au moins un des tenseurs de paramètres mu ou sigma doit avoir bougé suite au step
         any_changed = any(
             not torch.allclose(p1, p2, atol=1e-5)
             for p1, p2 in zip(init_weights, agent.q_network.parameters())
@@ -150,8 +163,16 @@ class TestNoisyDQN(TestDQN):
     def test_optimize_network_hooks_reset_noise(self) -> None:
         """Verify that standard step optimizations trigger an automatic noise resampling."""
         agent = self._make_dqn()
-        noisy_layer = agent.q_network.noisy1
-        old_eps = noisy_layer.weight_epsilon.clone()
+
+        q_net = agent.q_network
+        assert isinstance(q_net, NoisyQNetwork)
+
+        noisy_layer = q_net.noisy1
+        assert isinstance(noisy_layer, NoisyLinear)
+
+        w_eps = getattr(noisy_layer, "weight_epsilon")
+        assert isinstance(w_eps, torch.Tensor)
+        old_eps = w_eps.clone()
 
         dummy_loss = torch.tensor(1.0, requires_grad=True)
         agent.optimizer.zero_grad()
@@ -159,4 +180,6 @@ class TestNoisyDQN(TestDQN):
 
         agent._optimize_network(dummy_loss)
 
-        assert not torch.equal(noisy_layer.weight_epsilon, old_eps)
+        w_eps_new = getattr(noisy_layer, "weight_epsilon")
+        assert isinstance(w_eps_new, torch.Tensor)
+        assert not torch.equal(w_eps_new, old_eps)

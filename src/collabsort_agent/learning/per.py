@@ -2,6 +2,7 @@
 PER (Prioritized Experience Replay) algorithm.
 """
 
+from typing import Any
 from pathlib import Path
 import numpy as np
 import torch
@@ -66,7 +67,7 @@ class SumTree:
             remaining_val = s - self.tree[left_child_index]
             return self._retrieve(right_child_index, remaining_val)
 
-    def get_leaf(self, s: float) -> tuple[int, float, any]:
+    def get_leaf(self, s: float) -> tuple[int, float, Any]:
         leaf_index = self._retrieve(0, s)
         data_index = leaf_index - self.capacity + 1
         return leaf_index, self.tree[leaf_index], self.data[data_index]

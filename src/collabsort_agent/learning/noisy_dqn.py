@@ -6,6 +6,7 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 
 from collabsort_agent.learning.dqn import DQN
 
@@ -48,26 +49,33 @@ class NoisyLinear(nn.Module):
         x = torch.randn(size, device=self.weight_mu.device)
         return x.sign().mul(x.abs().sqrt())
 
-    def reset_noise(self):
-        """Resamples new random noise matrices for the current step."""
+    def reset_noise(self) -> None:
+        """Resample noise tensors for both weights and biases."""
         epsilon_in = self._scale_noise(self.in_features)
         epsilon_out = self._scale_noise(self.out_features)
 
-        # Outer product for weight noise, vector for bias noise
-        self.weight_epsilon.copy_(torch.outer(epsilon_out, epsilon_in))
-        self.bias_epsilon.copy_(epsilon_out)
+        # On extrait l'attribut brut en garantissant au typeur qu'il s'agit d'un Tensor
+        w_eps = getattr(self, "weight_epsilon")
+        b_eps = getattr(self, "bias_epsilon")
+
+        if isinstance(w_eps, torch.Tensor) and isinstance(b_eps, torch.Tensor):
+            w_eps.copy_(torch.outer(epsilon_out, epsilon_in))
+            b_eps.copy_(epsilon_out)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass sampling weights on the fly if training."""
         if self.training:
-            # In training mode, apply the learned exploration noise
-            weight = self.weight_mu + self.weight_sigma * self.weight_epsilon
-            bias = self.bias_mu + self.bias_sigma * self.bias_epsilon
-        else:
-            # In evaluation/test mode, the network becomes deterministic (no noise)
-            weight = self.weight_mu
-            bias = self.bias_mu
+            w_eps = getattr(self, "weight_epsilon")
+            b_eps = getattr(self, "bias_epsilon")
 
-        return F.linear(x, weight, bias)
+            assert isinstance(w_eps, torch.Tensor)
+            assert isinstance(b_eps, torch.Tensor)
+
+            weight = self.weight_mu + self.weight_sigma * w_eps
+            bias = self.bias_mu + self.bias_sigma * b_eps
+            return torch.nn.functional.linear(x, weight, bias)
+        else:
+            return torch.nn.functional.linear(x, self.weight_mu, self.bias_mu)
 
 
 class NoisyQNetwork(nn.Module):
@@ -112,18 +120,31 @@ class NoisyDQN(DQN):
             self.q_network.parameters(), lr=self.config.lr
         )
 
-    def update_action_values(self, state, action, reward, next_state, done) -> None:
-        """Override the interaction loop to force noise mutations at every single timestep."""
-        # 1. Apply standard DQN storage and optimization triggers
+    def update_action_values(
+        self,
+        state: np.ndarray,
+        action: int,
+        reward: float,
+        next_state: np.ndarray,
+        done: bool = False,
+    ) -> None:
+        """Update action values and reset exploration noise at episode step boundaries."""
         super().update_action_values(state, action, reward, next_state, done)
 
-        # 2. NoisyNet rule: Resample noise after EVERY action taken in the environment
-        self.q_network.reset_noise()
+        reset_q = getattr(self.q_network, "reset_noise", None)
+        if callable(reset_q):
+            reset_q()
 
-    def _optimize_network(self, loss) -> None:
-        # Delegate backpropagation and optimization steps to baseline DQN
+        if done:
+            reset_target = getattr(self.target_network, "reset_noise", None)
+            if callable(reset_target):
+                reset_target()
+
+    def _optimize_network(self, loss: torch.Tensor) -> None:
+        """Perform a gradient descent step and reset noisy network layers."""
         super()._optimize_network(loss)
 
-        # Resample noise after gradient steps to break temporal batch correlations
-        self.q_network.reset_noise()
-        self.target_network.reset_noise()
+        # On récupère la méthode dynamiquement pour contourner l'union type Tensor | Module
+        reset_fn = getattr(self.q_network, "reset_noise", None)
+        if callable(reset_fn):
+            reset_fn()
