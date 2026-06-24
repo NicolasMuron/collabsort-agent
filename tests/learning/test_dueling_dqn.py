@@ -1,15 +1,15 @@
 """
 Unit tests for the Dueling DQN algorithm.
 """
-
+import numpy as np
 import torch
 
 from collabsort_agent.learning import Config as LearningConfig
-from collabsort_agent.learning.dueling_dqn import Dueling_Network, DuelingDQN
+from collabsort_agent.learning.dueling_dqn import DuelingDQN, Dueling_Network
 from tests.learning.test_dqn import TestDQN
 
-
 class TestDuelingDQN(TestDQN):
+    
     def _make_dqn(
         self,
         n_actions: int = 4,
@@ -51,10 +51,8 @@ class TestDuelingDQN(TestDQN):
         normalized_advantages = advantages - advantages.mean(dim=1, keepdim=True)
 
         assert torch.allclose(outputs, expected_outputs)
-        assert torch.allclose(
-            normalized_advantages.mean(dim=1, keepdim=True), torch.zeros_like(value)
-        )
-
+        assert torch.allclose(normalized_advantages.mean(dim=1, keepdim=True), torch.zeros_like(value))
+        
     def test_dueling_streams_dimensions(self) -> None:
         """Thoroughly check the dimensions of each internal branch."""
         state_size = 5
@@ -64,8 +62,8 @@ class TestDuelingDQN(TestDQN):
 
         # We extract the common characteristics
         features = network.feature_layer(inputs)
-        assert features.shape[0] == 3  # Doit conserver le batch_size
-
+        assert features.shape[0] == 3 # Doit conserver le batch_size
+        
         # The “Value” branch must output a single dimension per statement (Batch_size, 1)
         value = network.value_stream(features)
         assert value.shape == (3, 1)
@@ -82,10 +80,7 @@ class TestDuelingDQN(TestDQN):
 
         # We perform a complete forward pass
         _ = network(inputs)
-
+        
         # We check that both streams were fed by the same activations
         # If the branches were not connected to the same feature_layer, this test would fail
-        assert (
-            network.value_stream[0].in_features
-            == network.advantage_stream[0].in_features
-        )
+        assert network.value_stream[0].in_features == network.advantage_stream[0].in_features

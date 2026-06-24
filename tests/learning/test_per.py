@@ -6,7 +6,7 @@ import torch
 
 from collabsort_agent.learning import Config as LearningConfig
 from collabsort_agent.learning.per import PER, SumTree
-from tests.tests_learning.test_dqn import TestDQN
+from tests.learning.test_dqn import TestDQN
 
 
 class TestSumTree:

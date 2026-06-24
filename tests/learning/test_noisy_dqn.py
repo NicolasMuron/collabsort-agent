@@ -2,13 +2,12 @@
 Unit tests for Noisy Networks for Exploration (NoisyDQN) components.
 """
 
-import pytest
 import torch
 import numpy as np
 
 from collabsort_agent.learning import Config as LearningConfig
 from collabsort_agent.learning.noisy_dqn import NoisyDQN, NoisyLinear, NoisyQNetwork
-from tests.tests_learning.test_dqn import TestDQN
+from tests.learning.test_dqn import TestDQN
 
 
 class TestNoisyComponents:

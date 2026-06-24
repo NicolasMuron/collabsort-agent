@@ -5,7 +5,7 @@ Unit tests for the Greedy deliberator.
 import numpy as np
 from collabsort_agent.decision import Config as DecisionConfig
 from collabsort_agent.decision.greedy import Greedy
-from tests.tests_decision.test_ard import EstimatorStub  # Réutilisation propre du Stub
+from tests.decision.test_ard import EstimatorStub  # Réutilisation propre du Stub
 
 
 def test_greedy_action_selection() -> None:

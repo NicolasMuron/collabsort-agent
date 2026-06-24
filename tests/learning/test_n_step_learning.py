@@ -1,7 +1,6 @@
 import numpy as np
 import pytest
-import torch
-from tests.tests_learning.test_dqn import TestDQN
+from tests.learning.test_dqn import TestDQN
 from collabsort_agent.learning import Config as LearningConfig
 from collabsort_agent.learning.n_step_learning import NStepLearning
 

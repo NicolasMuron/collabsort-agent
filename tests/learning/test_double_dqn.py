@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from collabsort_agent.learning import Config as LearningConfig
 from collabsort_agent.learning.double_dqn import DoubleDQN
-from tests.tests_learning.test_dqn import TestDQN 
+from tests.learning.test_dqn import TestDQN 
 
 class TestDoubleDQN(TestDQN):
     
