@@ -1,6 +1,7 @@
 """
 N-step learning algorithm
 """
+
 import random
 from pathlib import Path
 import numpy as np
@@ -14,7 +15,7 @@ from collabsort_agent.learning.dqn import DQN
 
 class NStepLearning(DQN):
     """N-step learning algorithm implementation"""
-    
+
     def __init__(
         self,
         config: LearningConfig,
@@ -29,7 +30,7 @@ class NStepLearning(DQN):
     def _store_transition(self, state, action, reward, next_state, done=False):
         """Store a transition in the N-step buffer and update the replay buffer global."""
         self.n_step_buffer.append((state, action, reward, next_state, done))
-        
+
         # At the end of the episode, we clear the entire remaining local buffer
         if done:
             while self.n_step_buffer:
@@ -49,11 +50,13 @@ class NStepLearning(DQN):
 
         # Calculation of the Cumulative Discounted Return (N-step discounted return)
         R = sum(
-            [self.n_step_buffer[i][2] * (self.config.gamma ** i) for i in range(actual_n)]
+            [self.n_step_buffer[i][2] * (self.config.gamma**i) for i in range(actual_n)]
         )
-        
+
         # Store the data directly in the UniformReplayBuffer's deque.
-        self.replay_buffer.buffer.append((state_0, action_0, R, next_state_n, done_n, actual_n))
+        self.replay_buffer.buffer.append(
+            (state_0, action_0, R, next_state_n, done_n, actual_n)
+        )
 
         # We drag the window
         self.n_step_buffer.pop(0)
@@ -65,12 +68,18 @@ class NStepLearning(DQN):
 
         # Manual sampling from the deque to retrieve our 6-element tuples
         batch = random.sample(self.replay_buffer.buffer, self.config.batch_size)
-        states, actions, rewards, next_states, dones, actual_ns = zip(*batch, strict=True)
+        states, actions, rewards, next_states, dones, actual_ns = zip(
+            *batch, strict=True
+        )
 
         states = torch.from_numpy(np.array(states, dtype=np.float32)).to(self.device)
-        actions = torch.tensor(actions, dtype=torch.long, device=self.device).unsqueeze(1)
+        actions = torch.tensor(actions, dtype=torch.long, device=self.device).unsqueeze(
+            1
+        )
         rewards = torch.tensor(rewards, dtype=torch.float32, device=self.device)
-        next_states = torch.from_numpy(np.array(next_states, dtype=np.float32)).to(self.device)
+        next_states = torch.from_numpy(np.array(next_states, dtype=np.float32)).to(
+            self.device
+        )
         dones = torch.tensor(dones, dtype=torch.float32, device=self.device)
         actual_ns = torch.tensor(actual_ns, dtype=torch.float32, device=self.device)
 
@@ -82,7 +91,7 @@ class NStepLearning(DQN):
         with torch.no_grad():
             q_next = self._get_next_q_values(next_states)
             # Application of a dynamic gamma (gamma^actual_n) specific to each transition
-            gamma_corrected = self.config.gamma ** actual_ns
+            gamma_corrected = self.config.gamma**actual_ns
             q_target = rewards + gamma_corrected * q_next * (1 - dones)
 
         loss = self.loss_fn(q_values, q_target)

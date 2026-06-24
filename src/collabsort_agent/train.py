@@ -14,6 +14,7 @@ from tqdm import trange
 
 from collabsort_agent.agent import Agent
 from collabsort_agent.config import Config, save_cfg
+
 # Decisions
 from collabsort_agent.decision.ard import ARD
 from collabsort_agent.decision.greedy import Greedy
@@ -23,6 +24,7 @@ from collabsort_agent.decision.exploration_decay import (
     ExponentialExplorationDecay,
     LinearExplorationDecay,
 )
+
 # Learners
 from collabsort_agent.learning.dd_dqn import DoubleDuelingDQN
 from collabsort_agent.learning.double_dqn import DoubleDQN
@@ -58,8 +60,10 @@ def _build_estimator(
     }
 
     if algo_name == "ql":
-        return Qlearning(config=config.learning, n_actions=n_actions, meta_ctrl=meta_ctrl)
-    
+        return Qlearning(
+            config=config.learning, n_actions=n_actions, meta_ctrl=meta_ctrl
+        )
+
     if algo_name in LEARNER_MAPPING:
         builder_kwargs = {
             "config": config.learning,
@@ -70,25 +74,50 @@ def _build_estimator(
             builder_kwargs["n_step"] = config.learning.n_step
 
         return LEARNER_MAPPING[algo_name](**builder_kwargs)
-        
+
     raise ValueError(f"Unrecognized learning algorithm: {algo_name}")
 
 
-def _build_deliberator(algo_name: str, config: Config, estimator, rng: np.random.Generator, meta_ctrl: MetaController):
+def _build_deliberator(
+    algo_name: str,
+    config: Config,
+    estimator,
+    rng: np.random.Generator,
+    meta_ctrl: MetaController,
+):
     """Factory helper to build the deliberator dynamically."""
     if algo_name == "eps":
         if config.decision.exploration_decay == "lin":
-            decay = LinearExplorationDecay(config=config.decision, total_steps=config.total_steps)
+            decay = LinearExplorationDecay(
+                config=config.decision, total_steps=config.total_steps
+            )
         elif config.decision.exploration_decay == "exp":
-            decay = ExponentialExplorationDecay(config=config.decision, total_steps=config.total_steps)
+            decay = ExponentialExplorationDecay(
+                config=config.decision, total_steps=config.total_steps
+            )
         else:
-            raise ValueError(f"Unrecognized exploration decay: {config.decision.exploration_decay}")
+            raise ValueError(
+                f"Unrecognized exploration decay: {config.decision.exploration_decay}"
+            )
 
-        return EpsilonGreedy(config=config.decision, estimator=estimator, exploration_decay=decay, rng=rng)
+        return EpsilonGreedy(
+            config=config.decision,
+            estimator=estimator,
+            exploration_decay=decay,
+            rng=rng,
+        )
 
     if algo_name == "ard":
-        decision_rule = WinAllRule(rng=rng) if config.decision.decision_rule == "win-all" else None
-        return ARD(config=config.decision, estimator=estimator, decision_rule=decision_rule, meta_ctrl=meta_ctrl, rng=rng)
+        decision_rule = (
+            WinAllRule(rng=rng) if config.decision.decision_rule == "win-all" else None
+        )
+        return ARD(
+            config=config.decision,
+            estimator=estimator,
+            decision_rule=decision_rule,
+            meta_ctrl=meta_ctrl,
+            rng=rng,
+        )
 
     if algo_name == "gre":
         return Greedy(config=config.decision, estimator=estimator, rng=rng)

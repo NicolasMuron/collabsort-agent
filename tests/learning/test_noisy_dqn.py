@@ -71,13 +71,13 @@ class TestNoisyDQN(TestDQN):
             replay_buffer_size=kwargs.get("replay_buffer_size", 1000),
             target_network_sync_freq=kwargs.get("target_sync_freq", 100),
         )
-        
+
         agent = NoisyDQN(
             config=config,
             n_actions=kwargs.get("n_actions", 4),
             state_size=kwargs.get("state_size", 5),
         )
-        
+
         agent.losses = []
         agent.mean_q_values = []
         return agent
@@ -93,40 +93,44 @@ class TestNoisyDQN(TestDQN):
         sans être bloqué par la divergence des buffers de bruits epsilon aléatoires.
         """
         agent = self._make_dqn(target_sync_freq=1)
-        
+
         # Simulation d'un ajout suffisant pour déclencher l'apprentissage et la copie cible
         state = np.random.randn(5).astype(np.float32)
         action = 0
         next_state = np.random.randn(5).astype(np.float32)
-        
+
         # On remplit au moins pour atteindre le batch_size initial de l'agent
         for _ in range(agent.config.batch_size + 1):
             agent.update_action_values(state, action, 1.0, next_state, done=False)
 
         # Règle de validation pour les NoisyNets : On compare les poids sous-jacents (appris)
         # et non pas les états des buffers de bruit instables (epsilon)
-        for p_online, p_target in zip(agent.q_network.parameters(), agent.target_network.parameters()):
-            assert torch.allclose(p_online, p_target, atol=1e-4), "Target network weights mu/sigma not synced"
+        for p_online, p_target in zip(
+            agent.q_network.parameters(), agent.target_network.parameters()
+        ):
+            assert torch.allclose(p_online, p_target, atol=1e-4), (
+                "Target network weights mu/sigma not synced"
+            )
 
     def test_update_and_buffer(self) -> None:
         """
-        Garantit que les poids PyTorch (mu/sigma) changent après l'activation 
+        Garantit que les poids PyTorch (mu/sigma) changent après l'activation
         effective de la descente de gradient via l'optimiseur.
         """
         agent = self._make_dqn(lr=1e-2)
-        
+
         # Prendre l'état initial des poids (copie profonde)
         init_weights = [p.clone() for p in agent.q_network.parameters()]
-        
+
         # 1. Simuler un passage vers l'avant (Forward) pour générer des gradients
         dummy_state = torch.randn(1, 5).to(agent.device)
         q_values = agent.q_network(dummy_state)
-        
+
         # 2. Créer une Loss fictive et calculer les gradients (Backward)
         loss = q_values.sum()
         agent.optimizer.zero_grad()
         loss.backward()
-        
+
         # 3. Appliquer l'optimisation (Step)
         agent.optimizer.step()
 
@@ -148,11 +152,11 @@ class TestNoisyDQN(TestDQN):
         agent = self._make_dqn()
         noisy_layer = agent.q_network.noisy1
         old_eps = noisy_layer.weight_epsilon.clone()
-        
+
         dummy_loss = torch.tensor(1.0, requires_grad=True)
         agent.optimizer.zero_grad()
         dummy_loss.backward()
-        
+
         agent._optimize_network(dummy_loss)
-        
+
         assert not torch.equal(noisy_layer.weight_epsilon, old_eps)

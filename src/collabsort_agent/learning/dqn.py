@@ -51,10 +51,11 @@ class QNetwork(nn.Module):
 
     def forward(self, x) -> torch.Tensor:
         return self.net(x)
-    
+
 
 class UniformReplayBuffer:
     """Classic replay buffer with uniform sampling (FIFO)."""
+
     def __init__(self, capacity: int):
         self.buffer = deque(maxlen=capacity)
 
@@ -106,11 +107,10 @@ class DQN(ActionValueEstimator):
 
         # Step counter used to decide when to sync the target network
         self.learning_step: int = 0
-        
+
     def build_network(self) -> nn.Module:
         """Default Network (Vanilla / Double)."""
-        return QNetwork(input_size=self.state_size, output_size=self.n_actions) 
-        
+        return QNetwork(input_size=self.state_size, output_size=self.n_actions)
 
     def build_network(self) -> nn.Module:
         """Default Network (Vanilla / Double)."""
@@ -152,12 +152,12 @@ class DQN(ActionValueEstimator):
 
         # Store transition in replay buffer
         self.replay_buffer.add(state, action, reward, next_state, done)
-        
+
     def _get_next_q_values(self, next_states: torch.Tensor) -> torch.Tensor:
         """Compute the max Q-values for the next states using the target network (Vanilla DQN)."""
         with torch.no_grad():
-            return self.target_network(next_states).max(1)[0]   
-        
+            return self.target_network(next_states).max(1)[0]
+
     def _prepare_tensors(self, batch: list) -> tuple:
         """Prepare and convert a batch of transitions (5 or 6 elements) into PyTorch tensors."""
         # Sample a batch of past experiences from replay buffer
@@ -167,17 +167,23 @@ class DQN(ActionValueEstimator):
         # Obtain PyTorch tensors from NumPy arrays.
         # torch.from_numpy avoids allocating new memory
         states = torch.from_numpy(np.array(states, dtype=np.float32)).to(self.device)
-        actions = torch.tensor(actions, dtype=torch.long, device=self.device).unsqueeze(1)
+        actions = torch.tensor(actions, dtype=torch.long, device=self.device).unsqueeze(
+            1
+        )
         rewards = torch.tensor(rewards, dtype=torch.float32, device=self.device)
-        next_states = torch.from_numpy(np.array(next_states, dtype=np.float32)).to(self.device)
+        next_states = torch.from_numpy(np.array(next_states, dtype=np.float32)).to(
+            self.device
+        )
         dones = torch.tensor(dones, dtype=torch.float32, device=self.device)
-        
+
         # Clamp actions to valid range
         actions = torch.clamp(actions, 0, self.n_actions - 1)
 
         # If the batch contains the `actual_n` from the n-step learning.
         if len(unzipped) == 6:
-            actual_ns = torch.tensor(unzipped[5], dtype=torch.float32, device=self.device)
+            actual_ns = torch.tensor(
+                unzipped[5], dtype=torch.float32, device=self.device
+            )
             return states, actions, rewards, next_states, dones, actual_ns
 
         return states, actions, rewards, next_states, dones
@@ -185,11 +191,11 @@ class DQN(ActionValueEstimator):
     def _optimize_network(self, loss: torch.Tensor) -> None:
         """Perform the backpropagation step and updates the weights."""
         self.losses.append(loss.item())
-        
+
         # Update Q-network parameters through a gradient descent step.
         self.optimizer.zero_grad()
         loss.backward()
-        
+
         # Clip gradients to prevent exploding gradients.
         # max_norm=10 is a common conservative bound for DQN.
         torch.nn.utils.clip_grad_norm_(self.q_network.parameters(), max_norm=10.0)
@@ -199,9 +205,11 @@ class DQN(ActionValueEstimator):
         """Periodically sync the target network with the online network."""
         self.learning_step += 1
         if self.learning_step % self.config.target_network_sync_freq == 0:
-            self.target_network.load_state_dict(self.q_network.state_dict())  
-            
-    def _compute_q_values_and_targets(self, tensors: tuple) -> tuple[torch.Tensor, torch.Tensor]:
+            self.target_network.load_state_dict(self.q_network.state_dict())
+
+    def _compute_q_values_and_targets(
+        self, tensors: tuple
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Calculate the current Q values and Q targets (broken down into DQN and PER)."""
         states, actions, rewards, next_states, dones = tensors
 
@@ -217,8 +225,8 @@ class DQN(ActionValueEstimator):
             q_next = self._get_next_q_values(next_states)
             # Q_target = r + gamma * max_a' Q_target(s', a') * (1 - done)
             q_target = rewards + self.config.gamma * q_next * (1 - dones)
-            
-        return q_values, q_target  
+
+        return q_values, q_target
 
     def _learn(self) -> None:
         """Update the Q-network parameters."""
@@ -227,25 +235,26 @@ class DQN(ActionValueEstimator):
             return
 
         # Sample a batch of past experiences from replay buffer
-        (states, actions, rewards, next_states, dones), _, _ = self.replay_buffer.sample(self.config.batch_size)
-        
+        (states, actions, rewards, next_states, dones), _, _ = (
+            self.replay_buffer.sample(self.config.batch_size)
+        )
+
         # Sample a batch of past experiences from replay buffer
         batch = list(zip(states, actions, rewards, next_states, dones))
-        
+
         # Prepare and convert a batch of transitions (5 or 6 elements) into PyTorch tensors.
         tensors = self._prepare_tensors(batch)
-        
+
         # Calculate the current Q values and Q targets (broken down into DQN and PER).
         q_values, q_target = self._compute_q_values_and_targets(tensors)
-        
+
         loss = self.loss_fn(q_values, q_target)
-        
+
         # Perform the backpropagation step and updates the weights.
         self._optimize_network(loss)
-        
+
         # Periodically sync the target network with the online network.
         self._handle_target_sync()
-
 
     def save_state(self, dir: str) -> None:
         Path(dir).mkdir(parents=True, exist_ok=True)

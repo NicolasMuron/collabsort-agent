@@ -1,6 +1,7 @@
 """
 Unit tests for exploration decay algorithms.
 """
+
 from numpy.testing import assert_almost_equal
 
 from collabsort_agent.decision import Config as DecisionConfig

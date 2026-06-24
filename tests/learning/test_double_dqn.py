@@ -1,6 +1,7 @@
 """
 Unit tests for the Double DQN algorithm.
 """
+
 import numpy as np
 import torch
 from collabsort_agent.learning import Config as LearningConfig

@@ -64,7 +64,9 @@ def test_n_step_learning_config_is_propagated() -> None:
         learning=learning_cfg,
         meta=MetaConfig(),
     )
-    meta_ctrl = MetaController(config=MetaConfig(), learning_cfg=learning_cfg, decision_cfg=DecisionConfig())
+    meta_ctrl = MetaController(
+        config=MetaConfig(), learning_cfg=learning_cfg, decision_cfg=DecisionConfig()
+    )
 
     estimator = _build_estimator(
         algo_name="n_step",

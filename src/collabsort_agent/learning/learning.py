@@ -16,7 +16,9 @@ class Config:
     """Learning configuration"""
 
     # Learning algorithm to use
-    algorithm: Literal["ql", "dqn", "dueling_dqn", "ddqn", "dd_dqn", "per", "n_step", "noisy"] = "dqn"
+    algorithm: Literal[
+        "ql", "dqn", "dueling_dqn", "ddqn", "dd_dqn", "per", "n_step", "noisy"
+    ] = "dqn"
 
     # Discount factor for Temporal-Difference algorithms
     gamma: float = 0.99
@@ -47,7 +49,7 @@ class Config:
 
     # Initial Q-Value
     q_start: float = 0
-    
+
     # Number of training episodes
     n_episodes: int = 300
 
@@ -103,7 +105,7 @@ class ActionValueEstimator(ABC):
             tag="learning/mean_q_value",
             scalar_value=mean(self.mean_q_values),
             global_step=episode,
-        )     
+        )
 
         # Reset episode data
         self.losses.clear()

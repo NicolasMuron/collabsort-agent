@@ -1,6 +1,7 @@
 """
 Unit tests for the Double Dueling DQN (DD-DQN) algorithm.
 """
+
 from collabsort_agent.learning import Config as LearningConfig
 from collabsort_agent.learning.dd_dqn import DoubleDuelingDQN
 

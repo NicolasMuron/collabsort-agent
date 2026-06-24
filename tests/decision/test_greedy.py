@@ -12,7 +12,7 @@ def test_greedy_action_selection() -> None:
     """Verify Greedy deliberator takes the absolute argmax of the action values."""
     # Action value matrix where action index 1 is the highest (value: 10.5)
     action_values = np.array([-1.0, 10.5, 3.2, 0.0])
-    
+
     estimator = EstimatorStub(action_values=action_values)
     config = DecisionConfig()
     rng = np.random.default_rng(42)
@@ -41,6 +41,6 @@ def test_greedy_lifecycle_methods() -> None:
     deliberator.log_episode(logger=None, episode=1)
     deliberator.save_state(dir="dummy_path")
     deliberator.load_state(dir="dummy_path")
-    
+
     # Un assert simple pour valider que le test s'est terminé sans planter
     assert True
