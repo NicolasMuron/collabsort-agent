@@ -9,6 +9,15 @@ from collabsort_agent.learning.double_dqn import DoubleDQN
 from tests.learning.test_dqn import TestDQN
 
 
+class LambdaModule(torch.nn.Module):
+    def __init__(self, func):
+        super().__init__()
+        self.func = func
+
+    def forward(self, state):
+        return self.func(state)
+
+
 class TestDoubleDQN(TestDQN):
     def _make_dqn(
         self,
@@ -54,15 +63,15 @@ class TestDoubleDQN(TestDQN):
         # to control their responses down to the last detail.
 
         # The Online network believes that the best stock is Stock 2 (score 15.0)
-        agent.q_network = lambda state: torch.tensor(
-            [[5.0, 10.0, 15.0]], device=agent.device
+        agent.q_network = LambdaModule(
+            lambda state: torch.tensor([[5.0, 10.0, 15.0]], device=agent.device)
         )
 
         # The Target network assigns different values.
         # For Action 2 (chosen by the online player), it is 2.0.
         # For Action 1, it is 99.0 (the target's overall maximum, which the Vanilla DQN would mistakenly choose!)
-        agent.target_network = lambda state: torch.tensor(
-            [[1.0, 99.0, 2.0]], device=agent.device
+        agent.target_network = LambdaModule(
+            lambda state: torch.tensor([[1.0, 99.0, 2.0]], device=agent.device)
         )
 
         with torch.no_grad():
