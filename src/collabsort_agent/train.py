@@ -14,6 +14,7 @@ from tqdm import trange
 
 from collabsort_agent.agent import Agent
 from collabsort_agent.config import Config, save_cfg
+
 # Decisions
 from collabsort_agent.decision.ard import ARD
 from collabsort_agent.decision.decision_rule import WinAllRule
@@ -22,6 +23,7 @@ from collabsort_agent.decision.exploration_decay import (
     ExponentialExplorationDecay,
     LinearExplorationDecay,
 )
+
 # Learners
 from collabsort_agent.learning.dd_dqn import DoubleDuelingDQN
 from collabsort_agent.learning.double_dqn import DoubleDQN
@@ -34,7 +36,13 @@ from collabsort_agent.metacognition import MetaController
 from collabsort_agent.perception import Perceiver
 
 
-def _build_estimator(algo_name: str, config: Config, n_actions: int, state_size: int, meta_ctrl: MetaController):
+def _build_estimator(
+    algo_name: str,
+    config: Config,
+    n_actions: int,
+    state_size: int,
+    meta_ctrl: MetaController,
+):
     """Factory helper to build the value estimator dynamically."""
     # Mapping table for learners that share the standard (config, n_actions, state_size) signature
     LEARNER_MAPPING = {
@@ -45,8 +53,10 @@ def _build_estimator(algo_name: str, config: Config, n_actions: int, state_size:
     }
 
     if algo_name == "ql":
-        return Qlearning(config=config.learning, n_actions=n_actions, meta_ctrl=meta_ctrl)
-    
+        return Qlearning(
+            config=config.learning, n_actions=n_actions, meta_ctrl=meta_ctrl
+        )
+
     if algo_name in LEARNER_MAPPING:
         builder_kwargs = {
             "config": config.learning,
@@ -55,25 +65,50 @@ def _build_estimator(algo_name: str, config: Config, n_actions: int, state_size:
         }
 
         return LEARNER_MAPPING[algo_name](**builder_kwargs)
-        
+
     raise ValueError(f"Unrecognized learning algorithm: {algo_name}")
 
 
-def _build_deliberator(algo_name: str, config: Config, estimator, rng: np.random.Generator, meta_ctrl: MetaController):
+def _build_deliberator(
+    algo_name: str,
+    config: Config,
+    estimator,
+    rng: np.random.Generator,
+    meta_ctrl: MetaController,
+):
     """Factory helper to build the deliberator dynamically."""
     if algo_name == "eps":
         if config.decision.exploration_decay == "lin":
-            decay = LinearExplorationDecay(config=config.decision, total_steps=config.total_steps)
+            decay = LinearExplorationDecay(
+                config=config.decision, total_steps=config.total_steps
+            )
         elif config.decision.exploration_decay == "exp":
-            decay = ExponentialExplorationDecay(config=config.decision, total_steps=config.total_steps)
+            decay = ExponentialExplorationDecay(
+                config=config.decision, total_steps=config.total_steps
+            )
         else:
-            raise ValueError(f"Unrecognized exploration decay: {config.decision.exploration_decay}")
+            raise ValueError(
+                f"Unrecognized exploration decay: {config.decision.exploration_decay}"
+            )
 
-        return EpsilonGreedy(config=config.decision, estimator=estimator, exploration_decay=decay, rng=rng)
+        return EpsilonGreedy(
+            config=config.decision,
+            estimator=estimator,
+            exploration_decay=decay,
+            rng=rng,
+        )
 
     if algo_name == "ard":
-        decision_rule = WinAllRule(rng=rng) if config.decision.decision_rule == "win-all" else None
-        return ARD(config=config.decision, estimator=estimator, decision_rule=decision_rule, meta_ctrl=meta_ctrl, rng=rng)
+        decision_rule = (
+            WinAllRule(rng=rng) if config.decision.decision_rule == "win-all" else None
+        )
+        return ARD(
+            config=config.decision,
+            estimator=estimator,
+            decision_rule=decision_rule,
+            meta_ctrl=meta_ctrl,
+            rng=rng,
+        )
 
     raise ValueError(f"Unrecognized decision algorithm: {algo_name}")
 
@@ -92,7 +127,9 @@ def create_agent(config: Config, sample_obs: dict, rng: np.random.Generator) -> 
         raise ValueError(f"Unrecognized memory type: {config.memory.type}")
     memory = Memory()
 
-    sample_extended_state = memory.get_extended_state(sensory_state=sample_sensory_state)
+    sample_extended_state = memory.get_extended_state(
+        sensory_state=sample_sensory_state
+    )
 
     # Initialize metacognition & dimensions
     meta_ctrl = MetaController(
@@ -101,9 +138,13 @@ def create_agent(config: Config, sample_obs: dict, rng: np.random.Generator) -> 
     extended_state_size = len(sample_extended_state)
     n_actions = len(Action) + len(memory.get_actions())
 
-    # Dynamic build 
-    estimator = _build_estimator(config.learning.algorithm, config, n_actions, extended_state_size, meta_ctrl)
-    deliberator = _build_deliberator(config.decision.algorithm, config, estimator, rng, meta_ctrl)
+    # Dynamic build
+    estimator = _build_estimator(
+        config.learning.algorithm, config, n_actions, extended_state_size, meta_ctrl
+    )
+    deliberator = _build_deliberator(
+        config.decision.algorithm, config, estimator, rng, meta_ctrl
+    )
 
     return Agent(perceiver=perceiver, memory=memory, deliberator=deliberator)
 
