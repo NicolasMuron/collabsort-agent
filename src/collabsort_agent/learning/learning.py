@@ -39,6 +39,9 @@ class Config:
     # Size of the DQN replay buffer
     replay_buffer_size: int = 100000
 
+    # Number of steps for n-step returns (1 = standard DQN)
+    n_step: int = 1
+
     # Interval in learning steps to copy online weights to target network.
     target_network_sync_freq: int = 500
 

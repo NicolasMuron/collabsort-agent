@@ -55,11 +55,15 @@ def _build_estimator(algo_name: str, config: Config, n_actions: int, state_size:
         return Qlearning(config=config.learning, n_actions=n_actions, meta_ctrl=meta_ctrl)
     
     if algo_name in LEARNER_MAPPING:
-        return LEARNER_MAPPING[algo_name](
-            config=config.learning,
-            n_actions=n_actions,
-            state_size=state_size,
-        )
+        builder_kwargs = {
+            "config": config.learning,
+            "n_actions": n_actions,
+            "state_size": state_size,
+        }
+        if algo_name == "n_step":
+            builder_kwargs["n_step"] = config.learning.n_step
+
+        return LEARNER_MAPPING[algo_name](**builder_kwargs)
         
     raise ValueError(f"Unrecognized learning algorithm: {algo_name}")
 
