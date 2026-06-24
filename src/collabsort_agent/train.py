@@ -14,6 +14,7 @@ from tqdm import trange
 
 from collabsort_agent.agent import Agent
 from collabsort_agent.config import Config, save_cfg
+# Decisions
 from collabsort_agent.decision.ard import ARD
 from collabsort_agent.decision.decision_rule import WinAllRule
 from collabsort_agent.decision.epsilon_greedy import EpsilonGreedy
@@ -21,97 +22,88 @@ from collabsort_agent.decision.exploration_decay import (
     ExponentialExplorationDecay,
     LinearExplorationDecay,
 )
+# Learners
+from collabsort_agent.learning.dd_dqn import DoubleDuelingDQN
+from collabsort_agent.learning.double_dqn import DoubleDQN
 from collabsort_agent.learning.dueling_dqn import DuelingDQN
 from collabsort_agent.learning.dqn import DQN
 from collabsort_agent.learning.q_learning import Qlearning
+
 from collabsort_agent.memory import Memory
 from collabsort_agent.metacognition import MetaController
 from collabsort_agent.perception import Perceiver
 
 
+def _build_estimator(algo_name: str, config: Config, n_actions: int, state_size: int, meta_ctrl: MetaController):
+    """Factory helper to build the value estimator dynamically."""
+    # Mapping table for learners that share the standard (config, n_actions, state_size) signature
+    LEARNER_MAPPING = {
+        "dqn": DQN,
+        "dueling_dqn": DuelingDQN,
+        "ddqn": DoubleDQN,
+        "dd_dqn": DoubleDuelingDQN,
+    }
+
+    if algo_name == "ql":
+        return Qlearning(config=config.learning, n_actions=n_actions, meta_ctrl=meta_ctrl)
+    
+    if algo_name in LEARNER_MAPPING:
+        builder_kwargs = {
+            "config": config.learning,
+            "n_actions": n_actions,
+            "state_size": state_size,
+        }
+
+        return LEARNER_MAPPING[algo_name](**builder_kwargs)
+        
+    raise ValueError(f"Unrecognized learning algorithm: {algo_name}")
+
+
+def _build_deliberator(algo_name: str, config: Config, estimator, rng: np.random.Generator, meta_ctrl: MetaController):
+    """Factory helper to build the deliberator dynamically."""
+    if algo_name == "eps":
+        if config.decision.exploration_decay == "lin":
+            decay = LinearExplorationDecay(config=config.decision, total_steps=config.total_steps)
+        elif config.decision.exploration_decay == "exp":
+            decay = ExponentialExplorationDecay(config=config.decision, total_steps=config.total_steps)
+        else:
+            raise ValueError(f"Unrecognized exploration decay: {config.decision.exploration_decay}")
+
+        return EpsilonGreedy(config=config.decision, estimator=estimator, exploration_decay=decay, rng=rng)
+
+    if algo_name == "ard":
+        decision_rule = WinAllRule(rng=rng) if config.decision.decision_rule == "win-all" else None
+        return ARD(config=config.decision, estimator=estimator, decision_rule=decision_rule, meta_ctrl=meta_ctrl, rng=rng)
+
+    raise ValueError(f"Unrecognized decision algorithm: {algo_name}")
+
+
 def create_agent(config: Config, sample_obs: dict, rng: np.random.Generator) -> Agent:
     """Create an agent with a specific configuration"""
 
-    # Initialize perception
+    # Initialize perception & memory
     perceiver = Perceiver(
         config=config.perception,
-        treadmill_rows=[config.env.upper_treadmill_row, config.env.lower_treadmill_row],
+        treadmill_rows=config.env.treadmill_rows,
     )
     sample_sensory_state = perceiver.get_sensory_state(obs=sample_obs)
 
-    if config.memory.type == "none":
-        memory = Memory()
-    else:
-        raise Exception(f"Unrecognized memory type: {config.memory.type}")
+    if config.memory.type != "none":
+        raise ValueError(f"Unrecognized memory type: {config.memory.type}")
+    memory = Memory()
 
-    sample_extended_state = memory.get_extended_state(
-        sensory_state=sample_sensory_state
-    )
+    sample_extended_state = memory.get_extended_state(sensory_state=sample_sensory_state)
 
-    # Initialize metacognition
+    # Initialize metacognition & dimensions
     meta_ctrl = MetaController(
         config=config.meta, learning_cfg=config.learning, decision_cfg=config.decision
     )
-
-    # Compute decision hyperparameters
     extended_state_size = len(sample_extended_state)
     n_actions = len(Action) + len(memory.get_actions())
 
-    # Initialize learning
-    if config.learning.algorithm == "ql":
-        estimator = Qlearning(
-            config=config.learning, n_actions=n_actions, meta_ctrl=meta_ctrl
-        )
-    elif config.learning.algorithm == "dqn":
-        estimator = DQN(
-            config=config.learning,
-            n_actions=n_actions,
-            state_size=extended_state_size,
-        )
-    elif config.learning.algorithm == "dueling_dqn":
-        estimator = DuelingDQN(
-            config=config.learning,
-            n_actions=n_actions,
-            state_size=extended_state_size,
-        )
-    else:
-        raise Exception(f"Unrecognized learning algorithm: {config.learning.algorithm}")
-
-    # Initialize decision-making
-    if config.decision.algorithm == "eps":
-        # Initialize exploration probability decay algorithm
-        if config.decision.exploration_decay == "lin":
-            exploration_decay = LinearExplorationDecay(
-                config=config.decision, total_steps=config.total_steps
-            )
-        elif config.decision.exploration_decay == "exp":
-            exploration_decay = ExponentialExplorationDecay(
-                config=config.decision, total_steps=config.total_steps
-            )
-        else:
-            raise Exception(
-                f"Unrecognized exploration decay: {config.decision.exploration_decay}"
-            )
-
-        deliberator = EpsilonGreedy(
-            config=config.decision,
-            estimator=estimator,
-            exploration_decay=exploration_decay,
-            rng=rng,
-        )
-    elif config.decision.algorithm == "ard":
-        if config.decision.decision_rule == "win-all":
-            decision_rule = WinAllRule(rng=rng)
-
-        deliberator = ARD(
-            config=config.decision,
-            estimator=estimator,
-            decision_rule=decision_rule,
-            meta_ctrl=meta_ctrl,
-            rng=rng,
-        )
-    else:
-        raise Exception(f"Unrecognized decision algorithm: {config.decision.algorithm}")
+    # Dynamic build 
+    estimator = _build_estimator(config.learning.algorithm, config, n_actions, extended_state_size, meta_ctrl)
+    deliberator = _build_deliberator(config.decision.algorithm, config, estimator, rng, meta_ctrl)
 
     return Agent(perceiver=perceiver, memory=memory, deliberator=deliberator)
 
