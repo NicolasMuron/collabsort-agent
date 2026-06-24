@@ -5,7 +5,7 @@ Dueling DQN algorithm
 import torch
 import torch.nn as nn
 
-from collabsort_agent.learning.dqn import DQN, get_device
+from collabsort_agent.learning.dqn import DQN
 
 class Dueling_Network(nn.Module):
     """Dueling DQN architecture."""
