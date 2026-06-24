@@ -38,7 +38,13 @@ from collabsort_agent.metacognition import MetaController
 from collabsort_agent.perception import Perceiver
 
 
-def _build_estimator(algo_name: str, config: Config, n_actions: int, state_size: int, meta_ctrl: MetaController):
+def _build_estimator(
+    algo_name: str,
+    config: Config,
+    n_actions: int,
+    state_size: int,
+    meta_ctrl: MetaController,
+):
     """Factory helper to build the value estimator dynamically."""
     # Mapping table for learners that share the standard (config, n_actions, state_size) signature
     LEARNER_MAPPING = {
@@ -104,7 +110,9 @@ def create_agent(config: Config, sample_obs: dict, rng: np.random.Generator) -> 
         raise ValueError(f"Unrecognized memory type: {config.memory.type}")
     memory = Memory()
 
-    sample_extended_state = memory.get_extended_state(sensory_state=sample_sensory_state)
+    sample_extended_state = memory.get_extended_state(
+        sensory_state=sample_sensory_state
+    )
 
     # Initialize metacognition & dimensions
     meta_ctrl = MetaController(
@@ -113,9 +121,13 @@ def create_agent(config: Config, sample_obs: dict, rng: np.random.Generator) -> 
     extended_state_size = len(sample_extended_state)
     n_actions = len(Action) + len(memory.get_actions())
 
-    # Dynamic build 
-    estimator = _build_estimator(config.learning.algorithm, config, n_actions, extended_state_size, meta_ctrl)
-    deliberator = _build_deliberator(config.decision.algorithm, config, estimator, rng, meta_ctrl)
+    # Dynamic build
+    estimator = _build_estimator(
+        config.learning.algorithm, config, n_actions, extended_state_size, meta_ctrl
+    )
+    deliberator = _build_deliberator(
+        config.decision.algorithm, config, estimator, rng, meta_ctrl
+    )
 
     return Agent(perceiver=perceiver, memory=memory, deliberator=deliberator)
 

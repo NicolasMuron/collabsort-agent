@@ -54,6 +54,12 @@ class Config:
     # Maximal number of steps in an episode
     n_steps_episode: int = 1000
 
+    # Number of training episodes
+    n_episodes: int = 300
+
+    # Maximal number of steps in an episode
+    n_steps_episode: int = 1000
+
 
 class ActionValueEstimator(ABC):
     """Base class for action value estimators."""
