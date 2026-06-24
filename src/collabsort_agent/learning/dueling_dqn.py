@@ -4,7 +4,6 @@ Dueling DQN algorithm
 
 import torch
 import torch.nn as nn
-import torch.optim as optim
 
 from collabsort_agent.learning.dqn import DQN, get_device
 
@@ -17,10 +16,7 @@ class Dueling_Network(nn.Module):
 
         # Common feature layer
         self.feature_layer = nn.Sequential(
-            nn.Linear(state_size, 100),
-            nn.ReLU(),
-            nn.Linear(100, 100),
-            nn.ReLU()
+            nn.Linear(state_size, 100), nn.ReLU(), nn.Linear(100, 100), nn.ReLU()
         )
         # Value stream
         self.value_stream = nn.Sequential(

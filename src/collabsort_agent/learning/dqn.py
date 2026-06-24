@@ -112,6 +112,10 @@ class DQN(ActionValueEstimator):
         return QNetwork(input_size=self.state_size, output_size=self.n_actions) 
         
 
+    def build_network(self) -> nn.Module:
+        """Default Network (Vanilla / Double)."""
+        return QNetwork(input_size=self.state_size, output_size=self.n_actions)
+
     def get_action_values(self, state: np.ndarray) -> np.ndarray:
         # Convert NumPy array to PyTorch tensor
         state_tensor = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
