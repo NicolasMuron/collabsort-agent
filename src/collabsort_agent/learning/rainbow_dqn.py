@@ -92,6 +92,21 @@ class RainbowDQN(PER):
             next_actions = self.q_network(next_states).argmax(dim=-1, keepdim=True)
             return self.target_network(next_states).gather(-1, next_actions).squeeze(-1)
 
+    def _compute_q_values_and_targets(
+        self, tensors: tuple
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Calculate current Q values and N-step Q targets for Rainbow."""
+        states, actions, rewards, next_states, dones, actual_ns = tensors
+
+        q_values = self.q_network(states).gather(1, actions).squeeze(1)
+        self.mean_q_values.append(torch.mean(q_values).item())
+
+        with torch.no_grad():
+            q_next = self._get_next_q_values(next_states)
+            q_target = rewards + self.config.gamma**actual_ns * q_next * (1 - dones)
+
+        return q_values, q_target
+
     def update_action_values(
         self,
         state: np.ndarray,

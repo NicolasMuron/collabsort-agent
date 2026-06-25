@@ -211,7 +211,10 @@ class DQN(ActionValueEstimator):
         self, tensors: tuple
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Calculate the current Q values and Q targets (broken down into DQN and PER)."""
-        states, actions, rewards, next_states, dones = tensors
+        if len(tensors) == 6:
+            states, actions, rewards, next_states, dones, _ = tensors
+        else:
+            states, actions, rewards, next_states, dones = tensors
 
         # Compute action values for the current states
         q_values = self.q_network(states).gather(1, actions).squeeze(1)
