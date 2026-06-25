@@ -26,7 +26,7 @@ class Config:
         "n_step",
         "noisy",
         "rainbow",
-    ] = "noisy"
+    ] = "rainbow"
 
     # Discount factor for Temporal-Difference algorithms
     gamma: float = 0.99
@@ -50,7 +50,7 @@ class Config:
     replay_buffer_size: int = 100000
 
     # Number of steps for n-step returns (1 = standard DQN)
-    n_step: int = 1
+    n_step: int = 3
 
     # Interval in learning steps to copy online weights to target network.
     target_network_sync_freq: int = 500
