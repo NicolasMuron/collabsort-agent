@@ -26,7 +26,7 @@ class Config:
         "n_step",
         "noisy",
         "rainbow",
-    ] = "rainbow"
+    ] = "noisy"
 
     # Discount factor for Temporal-Difference algorithms
     gamma: float = 0.99
