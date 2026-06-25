@@ -5,9 +5,9 @@ Noisy Networks for Exploration extension for DQN.
 import math
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
 
+from collabsort_agent.learning import Config as LearningConfig
 from collabsort_agent.learning.dqn import DQN
 
 
@@ -106,9 +106,9 @@ class NoisyQNetwork(nn.Module):
 class NoisyDQN(DQN):
     """DQN Agent utilizing Noisy Networks instead of Epsilon-Greedy exploration."""
 
-    def __init__(self, config, state_size, n_actions):
+    def __init__(self, config: LearningConfig, n_actions: int, state_size: int):
         # 1. Call parent constructor to initialize baseline structures (buffer, device...)
-        super().__init__(config, state_size, n_actions)
+        super().__init__(config=config, n_actions=n_actions, state_size=state_size)
 
         # 2. Properly instantiate noisy networks on the correct device
         self.q_network = NoisyQNetwork(state_size, n_actions).to(self.device)

@@ -34,6 +34,7 @@ from collabsort_agent.learning.per import PER
 from collabsort_agent.learning.noisy_dqn import NoisyDQN
 from collabsort_agent.learning.n_step_learning import NStepLearning
 from collabsort_agent.learning.q_learning import Qlearning
+from collabsort_agent.learning.rainbow_dqn import RainbowDQN
 
 from collabsort_agent.memory import Memory
 from collabsort_agent.metacognition import MetaController
@@ -64,6 +65,13 @@ def _build_estimator(
         )
     elif algo_name == "per":
         return PER(config=c_learn, n_actions=n_actions, state_size=state_size)
+    elif algo_name == "rainbow":
+        return RainbowDQN(
+            config=c_learn,
+            n_actions=n_actions,
+            state_size=state_size,
+            n_step=c_learn.n_step,
+        )
     elif algo_name == "n_step":
         return NStepLearning(
             config=c_learn,
