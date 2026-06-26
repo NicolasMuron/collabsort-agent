@@ -1,5 +1,5 @@
 """
-Rainbow DQN algorithm combining Double DQN, Dueling, Noisy Nets, Prioritized Replay, and N-step returns.
+Rainbow DQN algorithm combining Double DQN, Dueling, Prioritized Replay, and N-step returns.
 """
 
 from typing import Any
@@ -11,12 +11,11 @@ import torch.optim as optim
 
 from collabsort_agent.learning import Config as LearningConfig
 from collabsort_agent.learning.dueling_dqn import Dueling_Network
-from collabsort_agent.learning.noisy_dqn import NoisyLinear
 from collabsort_agent.learning.per import PER
 
 
 class RainbowDQN(PER):
-    """Rainbow DQN implementation with prioritized replay, n-step returns, noisy dueling network, and double DQN target logic."""
+    """Rainbow DQN implementation with prioritized replay, n-step returns, dueling network, and double DQN target logic."""
 
     def __init__(
         self,
@@ -29,15 +28,11 @@ class RainbowDQN(PER):
         self.n_step_buffer: list[tuple[Any, ...]] = []
         super().__init__(config=config, n_actions=n_actions, state_size=state_size)
 
-        # Recreate optimizer for the noisy dueling network parameters.
-        self.optimizer = optim.Adam(self.q_network.parameters(), lr=self.per_lr)
-
     def build_network(self) -> nn.Module:
-        """Build a Noisy Dueling Q-network for Rainbow using shared dueling architecture."""
+        """Build a Dueling Q-network for Rainbow using shared dueling architecture."""
         return Dueling_Network(
             state_size=self.state_size,
             action_size=self.n_actions,
-            linear_layer=NoisyLinear,
         )
 
     def _store_transition(
@@ -107,28 +102,3 @@ class RainbowDQN(PER):
 
         return q_values, q_target
 
-    def update_action_values(
-        self,
-        state: np.ndarray,
-        action: int,
-        reward: float,
-        next_state: np.ndarray,
-        done: bool = False,
-    ):
-        super().update_action_values(state, action, reward, next_state, done)
-
-        reset_fn = getattr(self.q_network, "reset_noise", None)
-        if callable(reset_fn):
-            reset_fn()
-
-        if done:
-            reset_target = getattr(self.target_network, "reset_noise", None)
-            if callable(reset_target):
-                reset_target()
-
-    def _optimize_network(self, loss: torch.Tensor) -> None:
-        super()._optimize_network(loss)
-
-        reset_fn = getattr(self.q_network, "reset_noise", None)
-        if callable(reset_fn):
-            reset_fn()
