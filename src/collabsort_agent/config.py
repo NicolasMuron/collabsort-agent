@@ -37,7 +37,7 @@ class Config:
     meta: MetaConfig
 
     # Number of training episodes
-    n_episodes: int = 300
+    n_episodes: int = 500
 
     # Maximal number of steps in an episode
     n_steps_episode: int = 1000
