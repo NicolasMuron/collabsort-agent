@@ -101,4 +101,3 @@ class RainbowDQN(PER):
             q_target = rewards + self.config.gamma**actual_ns * q_next * (1 - dones)
 
         return q_values, q_target
-
