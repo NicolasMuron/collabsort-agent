@@ -12,7 +12,10 @@ from collabsort_agent.learning import Config as LearningConfig
 from collabsort_agent.memory import Config as MemoryConfig
 from collabsort_agent.metacognition import Config as MetaConfig
 from collabsort_agent.perception import Config as PerceptionConfig
-from collabsort_agent.train_curriculum import load_curriculum_from_json, train_curriculum
+from collabsort_agent.train_curriculum import (
+    load_curriculum_from_json,
+    train_curriculum,
+)
 
 
 def test_train_curriculum(tmp_path) -> None:
@@ -26,16 +29,13 @@ def test_train_curriculum(tmp_path) -> None:
             "n_episodes": 2,
             "env_overrides": {
                 "robot_enabled": False,
-            }
+            },
         },
         {
             "name": "Phase 2 - Hard",
             "n_episodes": 2,
-            "env_overrides": {
-                "robot_enabled": True,
-                "reward_noise_std": 0.5
-            }
-        }
+            "env_overrides": {"robot_enabled": True, "reward_noise_std": 0.5},
+        },
     ]
 
     with open(json_path, "w", encoding="utf-8") as f:
@@ -46,7 +46,9 @@ def test_train_curriculum(tmp_path) -> None:
         env=EnvConfig(),
         perception=PerceptionConfig(),
         memory=MemoryConfig(),
-        decision=DecisionConfig(epsilon_start=1, epsilon_min=1),  # Always explore randomly
+        decision=DecisionConfig(
+            epsilon_start=1, epsilon_min=1
+        ),  # Always explore randomly
         learning=LearningConfig(),
         meta=MetaConfig(),
         n_episodes=2,
@@ -57,7 +59,7 @@ def test_train_curriculum(tmp_path) -> None:
 
     # 3. Load curriculum and run training
     phases = load_curriculum_from_json(base_config=cfg, json_path=str(json_path))
-    
+
     # Assert phases were correctly loaded
     assert len(phases) == 2
     assert phases[0].env_config.robot_enabled is False
