@@ -27,14 +27,16 @@ def test_train_curriculum(tmp_path) -> None:
         {
             "name": "Phase 1 - Easy",
             "n_episodes": 2,
-            "env_overrides": {
-                "robot_enabled": False,
-            },
+            "env_overrides": {"robot_enabled": False, "active_treadmills": ["upper"]},
         },
         {
             "name": "Phase 2 - Hard",
             "n_episodes": 2,
-            "env_overrides": {"robot_enabled": True, "reward_noise_std": 0.5},
+            "env_overrides": {
+                "robot_enabled": True,
+                "reward_noise_std": 0.5,
+                "active_treadmills": ["upper", "lower"],
+            },
         },
     ]
 

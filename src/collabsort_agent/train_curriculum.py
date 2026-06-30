@@ -40,13 +40,15 @@ class CurriculumArgs:
 def load_curriculum_from_json(
     base_config: Config, json_path: str
 ) -> list[CurriculumPhase]:
-    """Load curriculum phases from a JSON file."""
+    """Load curriculum phases from a JSON file and update base_config treadmills."""
 
     print(f"Loading curriculum from {json_path}...")
     with open(json_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
     phases = []
+    all_active_treadmills = set(base_config.env.active_treadmills)
+
     for phase_data in data:
         env_config = copy.deepcopy(base_config.env)
 
@@ -54,6 +56,9 @@ def load_curriculum_from_json(
         for k, v in phase_data.get("env_overrides", {}).items():
             if k == "robot_strategy":
                 v = RobotStrategy(v)
+            elif k == "active_treadmills":
+                v = tuple(v)  # Ensure it is a tuple as expected by the environment
+                all_active_treadmills.update(v)
             setattr(env_config, k, v)
 
         phases.append(
@@ -63,6 +68,13 @@ def load_curriculum_from_json(
                 env_config=env_config,
             )
         )
+
+    # Crucial step for zero-padding: the agent's initial perceiver must have ALL treadmills
+    # that will be used across the entire curriculum, to initialize the correct network size.
+    base_config.env.active_treadmills = tuple(sorted(list(all_active_treadmills)))
+    print(
+        f"Agent's perceiver initialized with global active treadmills: {base_config.env.active_treadmills}"
+    )
 
     print(f"Successfully loaded {len(phases)} phases.")
     return phases
