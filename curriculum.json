@@ -1,0 +1,34 @@
+[
+  {
+    "name": "Phase 1 - Facile (Pas de robot, pas de bruit)",
+    "n_episodes": 100,
+    "env_overrides": {
+      "robot_enabled": false,
+      "reward_noise_std": 0.0,
+      "enable_reward_change": false
+    }
+  },
+  {
+    "name": "Phase 2 - Intermediaire (Robot lent, faible bruit)",
+    "n_episodes": 150,
+    "env_overrides": {
+      "robot_enabled": true,
+      "robot_slow_mode": true,
+      "robot_strategy": "closest_object",
+      "reward_noise_std": 0.1,
+      "enable_reward_change": false
+    }
+  },
+  {
+    "name": "Phase 3 - Difficile (Robot agressif, bruit fort)",
+    "n_episodes": 200,
+    "env_overrides": {
+      "robot_enabled": true,
+      "robot_slow_mode": false,
+      "robot_strategy": "agent_target",
+      "reward_noise_std": 0.5,
+      "enable_reward_change": true,
+      "reward_change_step": 50000
+    }
+  }
+]
