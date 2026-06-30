@@ -64,11 +64,12 @@ class UniformReplayBuffer:
 
     def sample(self, batch_size: int):
         minibatch = random.sample(self.buffer, batch_size)
-        states = np.array([t[0] for t in minibatch], dtype=np.float32)
-        actions = np.array([t[1] for t in minibatch], dtype=np.int64)
-        rewards = np.array([t[2] for t in minibatch], dtype=np.float32)
-        next_states = np.array([t[3] for t in minibatch], dtype=np.float32)
-        dones = np.array([t[4] for t in minibatch], dtype=np.float32)
+        states, actions, rewards, next_states, dones = zip(*minibatch, strict=True)
+        states = np.array(states, dtype=np.float32)
+        actions = np.array(actions, dtype=np.int64)
+        rewards = np.array(rewards, dtype=np.float32)
+        next_states = np.array(next_states, dtype=np.float32)
+        dones = np.array(dones, dtype=np.float32)
         # Return None for index and weights because DQN doesn't need them
         return (states, actions, rewards, next_states, dones), None, None
 
@@ -154,31 +155,36 @@ class DQN(ActionValueEstimator):
         with torch.no_grad():
             return self.target_network(next_states).max(1)[0]
 
-    def _prepare_tensors(self, batch: list) -> tuple:
+    def _prepare_tensors(self, unzipped: tuple) -> tuple:
         """Prepare and convert a batch of transitions (5 or 6 elements) into PyTorch tensors."""
-        # Sample a batch of past experiences from replay buffer
-        unzipped = list(zip(*batch, strict=True))
         states, actions, rewards, next_states, dones = unzipped[:5]
 
-        # Obtain PyTorch tensors from NumPy arrays.
-        # torch.from_numpy avoids allocating new memory
-        states = torch.from_numpy(np.array(states, dtype=np.float32)).to(self.device)
-        actions = torch.tensor(actions, dtype=torch.long, device=self.device).unsqueeze(
-            1
+        # Obtain PyTorch tensors from NumPy arrays or lists.
+        states = torch.as_tensor(states, dtype=torch.float32).to(
+            self.device, non_blocking=True
         )
-        rewards = torch.tensor(rewards, dtype=torch.float32, device=self.device)
-        next_states = torch.from_numpy(np.array(next_states, dtype=np.float32)).to(
-            self.device
+        actions = (
+            torch.as_tensor(actions, dtype=torch.long)
+            .to(self.device, non_blocking=True)
+            .unsqueeze(1)
         )
-        dones = torch.tensor(dones, dtype=torch.float32, device=self.device)
+        rewards = torch.as_tensor(rewards, dtype=torch.float32).to(
+            self.device, non_blocking=True
+        )
+        next_states = torch.as_tensor(next_states, dtype=torch.float32).to(
+            self.device, non_blocking=True
+        )
+        dones = torch.as_tensor(dones, dtype=torch.float32).to(
+            self.device, non_blocking=True
+        )
 
         # Clamp actions to valid range
         actions = torch.clamp(actions, 0, self.n_actions - 1)
 
         # If the batch contains the `actual_n` from the n-step learning.
         if len(unzipped) == 6:
-            actual_ns = torch.tensor(
-                unzipped[5], dtype=torch.float32, device=self.device
+            actual_ns = torch.as_tensor(unzipped[5], dtype=torch.float32).to(
+                self.device, non_blocking=True
             )
             return states, actions, rewards, next_states, dones, actual_ns
 
@@ -234,15 +240,10 @@ class DQN(ActionValueEstimator):
             return
 
         # Sample a batch of past experiences from replay buffer
-        (states, actions, rewards, next_states, dones), _, _ = (
-            self.replay_buffer.sample(self.config.batch_size)
-        )
-
-        # Sample a batch of past experiences from replay buffer
-        batch = list(zip(states, actions, rewards, next_states, dones, strict=False))
+        tensors_data, _, _ = self.replay_buffer.sample(self.config.batch_size)
 
         # Prepare and convert a batch of transitions (5 or 6 elements) into PyTorch tensors.
-        tensors = self._prepare_tensors(batch)
+        tensors = self._prepare_tensors(tensors_data)
 
         # Calculate the current Q values and Q targets (broken down into DQN and PER).
         q_values, q_target = self._compute_q_values_and_targets(tensors)
