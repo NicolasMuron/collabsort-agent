@@ -112,10 +112,6 @@ class DQN(ActionValueEstimator):
         """Default Network (Vanilla / Double)."""
         return QNetwork(input_size=self.state_size, output_size=self.n_actions)
 
-    def build_network(self) -> nn.Module:
-        """Default Network (Vanilla / Double)."""
-        return QNetwork(input_size=self.state_size, output_size=self.n_actions)
-
     def get_action_values(self, state: np.ndarray) -> np.ndarray:
         # Convert NumPy array to PyTorch tensor
         state_tensor = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
@@ -243,7 +239,7 @@ class DQN(ActionValueEstimator):
         )
 
         # Sample a batch of past experiences from replay buffer
-        batch = list(zip(states, actions, rewards, next_states, dones))
+        batch = list(zip(states, actions, rewards, next_states, dones, strict=False))
 
         # Prepare and convert a batch of transitions (5 or 6 elements) into PyTorch tensors.
         tensors = self._prepare_tensors(batch)

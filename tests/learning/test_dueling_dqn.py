@@ -2,7 +2,6 @@
 Unit tests for the Dueling DQN algorithm.
 """
 
-import numpy as np
 import torch
 
 from collabsort_agent.learning import Config as LearningConfig

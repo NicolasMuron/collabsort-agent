@@ -11,7 +11,7 @@ from collabsort_agent.learning.n_step_learning import NStepLearning
 from collabsort_agent.metacognition import Config as MetaConfig, MetaController
 from collabsort_agent.memory import Config as MemoryConfig
 from collabsort_agent.perception import Config as PerceptionConfig
-from collabsort_agent.train import _build_estimator, create_agent, train
+from collabsort_agent.train import _build_estimator, train
 
 
 def test_random_agent() -> None:

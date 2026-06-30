@@ -3,7 +3,6 @@ PER (Prioritized Experience Replay) algorithm.
 """
 
 from typing import Any
-from pathlib import Path
 import numpy as np
 import torch
 import torch.nn as nn
@@ -206,7 +205,7 @@ class PER(DQN):
 
         # PER Feature: Tree Update
         td_errors = (q_target - q_values).abs().detach().cpu().numpy()
-        for idx, error in zip(idxs, td_errors):
+        for idx, error in zip(idxs, td_errors, strict=False):
             self.tree.update(idx, self._get_priority(error))
 
         # Legacy Synchronization

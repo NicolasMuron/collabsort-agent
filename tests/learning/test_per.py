@@ -3,7 +3,6 @@ Unit tests for the PER (Prioritized Experience Replay) algorithm and SumTree.
 """
 
 import numpy as np
-import torch
 from typing import Any
 
 from collabsort_agent.learning import Config as LearningConfig

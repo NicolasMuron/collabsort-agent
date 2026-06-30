@@ -55,8 +55,8 @@ class NoisyLinear(nn.Module):
         epsilon_out = self._scale_noise(self.out_features)
 
         # On extrait l'attribut brut en garantissant au typeur qu'il s'agit d'un Tensor
-        w_eps = getattr(self, "weight_epsilon")
-        b_eps = getattr(self, "bias_epsilon")
+        w_eps = self.weight_epsilon
+        b_eps = self.bias_epsilon
 
         if isinstance(w_eps, torch.Tensor) and isinstance(b_eps, torch.Tensor):
             w_eps.copy_(torch.outer(epsilon_out, epsilon_in))
@@ -65,8 +65,8 @@ class NoisyLinear(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass sampling weights on the fly if training."""
         if self.training:
-            w_eps = getattr(self, "weight_epsilon")
-            b_eps = getattr(self, "bias_epsilon")
+            w_eps = self.weight_epsilon
+            b_eps = self.bias_epsilon
 
             assert isinstance(w_eps, torch.Tensor)
             assert isinstance(b_eps, torch.Tensor)

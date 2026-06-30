@@ -23,8 +23,8 @@ class TestNoisyComponents:
         assert layer.bias_mu.shape == (out_features,)
         assert layer.bias_sigma.shape == (out_features,)
 
-        w_eps = getattr(layer, "weight_epsilon")
-        b_eps = getattr(layer, "bias_epsilon")
+        w_eps = layer.weight_epsilon
+        b_eps = layer.bias_epsilon
         assert isinstance(w_eps, torch.Tensor)
         assert isinstance(b_eps, torch.Tensor)
         assert w_eps.shape == (out_features, in_features)
@@ -34,8 +34,8 @@ class TestNoisyComponents:
         """Ensure reset_noise effectively samples brand new random epsilon tensors."""
         layer = NoisyLinear(in_features=4, out_features=2)
 
-        w_eps = getattr(layer, "weight_epsilon")
-        b_eps = getattr(layer, "bias_epsilon")
+        w_eps = layer.weight_epsilon
+        b_eps = layer.bias_epsilon
         assert isinstance(w_eps, torch.Tensor)
         assert isinstance(b_eps, torch.Tensor)
 
@@ -44,8 +44,8 @@ class TestNoisyComponents:
 
         layer.reset_noise()
 
-        w_eps_new = getattr(layer, "weight_epsilon")
-        b_eps_new = getattr(layer, "bias_epsilon")
+        w_eps_new = layer.weight_epsilon
+        b_eps_new = layer.bias_epsilon
         assert isinstance(w_eps_new, torch.Tensor)
         assert isinstance(b_eps_new, torch.Tensor)
 
@@ -124,7 +124,9 @@ class TestNoisyDQN(TestDQN):
             agent.update_action_values(state, action, 1.0, next_state, done=False)
 
         for p_online, p_target in zip(
-            agent.q_network.parameters(), agent.target_network.parameters()
+            agent.q_network.parameters(),
+            agent.target_network.parameters(),
+            strict=False,
         ):
             assert torch.allclose(p_online, p_target, atol=1e-4), (
                 "Target network weights mu/sigma not synced"
@@ -150,7 +152,7 @@ class TestNoisyDQN(TestDQN):
 
         any_changed = any(
             not torch.allclose(p1, p2, atol=1e-5)
-            for p1, p2 in zip(init_weights, agent.q_network.parameters())
+            for p1, p2 in zip(init_weights, agent.q_network.parameters(), strict=False)
         )
         assert any_changed, "Network weights should change after an optimization step"
 
@@ -170,7 +172,7 @@ class TestNoisyDQN(TestDQN):
         noisy_layer = q_net.noisy1
         assert isinstance(noisy_layer, NoisyLinear)
 
-        w_eps = getattr(noisy_layer, "weight_epsilon")
+        w_eps = noisy_layer.weight_epsilon
         assert isinstance(w_eps, torch.Tensor)
         old_eps = w_eps.clone()
 
@@ -180,6 +182,6 @@ class TestNoisyDQN(TestDQN):
 
         agent._optimize_network(dummy_loss)
 
-        w_eps_new = getattr(noisy_layer, "weight_epsilon")
+        w_eps_new = noisy_layer.weight_epsilon
         assert isinstance(w_eps_new, torch.Tensor)
         assert not torch.equal(w_eps_new, old_eps)
