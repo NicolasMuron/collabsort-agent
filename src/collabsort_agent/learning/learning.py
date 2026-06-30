@@ -16,7 +16,15 @@ class Config:
     """Learning configuration"""
 
     # Learning algorithm to use
-    algorithm: Literal["ql", "dqn", "dueling_dqn", "ddqn", "dd_dqn"] = "dqn"
+    algorithm: Literal[
+        "ql",
+        "dqn",
+        "dueling_dqn",
+        "ddqn",
+        "dd_dqn",
+        "per",
+        "n_step",
+    ] = "ql"
 
     # Discount factor for Temporal-Difference algorithms
     gamma: float = 0.99
@@ -40,7 +48,7 @@ class Config:
     replay_buffer_size: int = 100000
 
     # Number of steps for n-step returns (1 = standard DQN)
-    n_step: int = 1
+    n_step: int = 3
 
     # Interval in learning steps to copy online weights to target network.
     target_network_sync_freq: int = 500

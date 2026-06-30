@@ -29,6 +29,8 @@ from collabsort_agent.learning.dd_dqn import DoubleDuelingDQN
 from collabsort_agent.learning.double_dqn import DoubleDQN
 from collabsort_agent.learning.dueling_dqn import DuelingDQN
 from collabsort_agent.learning.dqn import DQN
+from collabsort_agent.learning.per import PER
+from collabsort_agent.learning.n_step_learning import NStepLearning
 from collabsort_agent.learning.q_learning import Qlearning
 
 from collabsort_agent.memory import Memory
@@ -44,27 +46,29 @@ def _build_estimator(
     meta_ctrl: MetaController,
 ):
     """Factory helper to build the value estimator dynamically."""
-    # Mapping table for learners that share the standard (config, n_actions, state_size) signature
-    LEARNER_MAPPING = {
-        "dqn": DQN,
-        "dueling_dqn": DuelingDQN,
-        "ddqn": DoubleDQN,
-        "dd_dqn": DoubleDuelingDQN,
-    }
+    c_learn = config.learning
 
     if algo_name == "ql":
-        return Qlearning(
-            config=config.learning, n_actions=n_actions, meta_ctrl=meta_ctrl
+        return Qlearning(config=c_learn, n_actions=n_actions, meta_ctrl=meta_ctrl)
+    elif algo_name == "dqn":
+        return DQN(config=c_learn, n_actions=n_actions, state_size=state_size)
+    elif algo_name == "dueling_dqn":
+        return DuelingDQN(config=c_learn, n_actions=n_actions, state_size=state_size)
+    elif algo_name == "ddqn":
+        return DoubleDQN(config=c_learn, n_actions=n_actions, state_size=state_size)
+    elif algo_name == "dd_dqn":
+        return DoubleDuelingDQN(
+            config=c_learn, n_actions=n_actions, state_size=state_size
         )
-
-    if algo_name in LEARNER_MAPPING:
-        builder_kwargs = {
-            "config": config.learning,
-            "n_actions": n_actions,
-            "state_size": state_size,
-        }
-
-        return LEARNER_MAPPING[algo_name](**builder_kwargs)
+    elif algo_name == "per":
+        return PER(config=c_learn, n_actions=n_actions, state_size=state_size)
+    elif algo_name == "n_step":
+        return NStepLearning(
+            config=c_learn,
+            n_actions=n_actions,
+            state_size=state_size,
+            n_step=c_learn.n_step,
+        )
 
     raise ValueError(f"Unrecognized learning algorithm: {algo_name}")
 
@@ -119,7 +123,7 @@ def create_agent(config: Config, sample_obs: dict, rng: np.random.Generator) -> 
     # Initialize perception & memory
     perceiver = Perceiver(
         config=config.perception,
-        treadmill_rows=[config.env.upper_treadmill_row, config.env.lower_treadmill_row],
+        treadmill_rows=config.env.treadmill_rows,
     )
     sample_sensory_state = perceiver.get_sensory_state(obs=sample_obs)
 
