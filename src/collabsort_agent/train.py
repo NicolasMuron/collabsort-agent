@@ -221,6 +221,13 @@ class EpisodeMetrics:
 def train(config: Config) -> None:
     """Train an agent"""
 
+    # Allow PyTorch to use TF32 (tensor float 32) on Ampere+ GPUs.
+    # Must be set BEFORE any PyTorch operation (including torch.compile's lazy
+    # compilation at the first forward pass) to avoid the TensorFloat32 warning.
+    # TF32 trades a tiny amount of floating-point precision for a significant
+    # throughput gain on matrix multiplications (~3× on A100/H100).
+    torch.set_float32_matmul_precision("high")
+
     # Create directory path for training output
     train_dir: str = f"runs/train_{int(time.time())}_{config.decision.algorithm}_{config.learning.algorithm}"
 
@@ -229,11 +236,6 @@ def train(config: Config) -> None:
         # Increase flush_secs to reduce I/O overhead during training;
         # events will be persisted at most every 60 s instead of every 2 s.
         logger = SummaryWriter(f"{train_dir}", flush_secs=60)
-
-    # Allow PyTorch to use TF32 (tensor float 32) on Ampere+ GPUs.
-    # TF32 trades a tiny amount of floating-point precision for a significant
-    # throughput gain on matrix multiplications and convolutions (~3× on A100).
-    torch.set_float32_matmul_precision("high")
 
     # Initialize environment
     env = gym.make("CollabSort-v0", config=config.env)

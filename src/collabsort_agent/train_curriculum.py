@@ -8,6 +8,7 @@ import time
 from dataclasses import dataclass
 
 import gymnasium as gym
+import torch
 import tyro
 from gym_collabsort.config import Action, Config as EnvConfig, RobotStrategy
 from torch.utils.tensorboard import SummaryWriter
@@ -83,13 +84,19 @@ def load_curriculum_from_json(
 def train_curriculum(base_config: Config, phases: list[CurriculumPhase]) -> None:
     """Train an agent sequentially across multiple phases"""
 
+    # Allow PyTorch to use TF32 (tensor float 32) on Ampere+ GPUs.
+    # Must be set BEFORE any PyTorch operation to avoid the TensorFloat32 warning
+    # from torch.compile's lazy compilation at the first forward pass.
+    torch.set_float32_matmul_precision("high")
+
     # Create directory path for training output
     train_dir: str = f"runs/train_curriculum_{int(time.time())}_{base_config.decision.algorithm}_{base_config.learning.algorithm}"
 
     logger = None
     if base_config.log_events:
-        # Initialize logging
-        logger = SummaryWriter(f"{train_dir}")
+        # Increase flush_secs to reduce I/O overhead during training;
+        # events will be persisted at most every 60 s instead of every 2 s.
+        logger = SummaryWriter(f"{train_dir}", flush_secs=60)
 
     # We use the first phase's environment config to initialize the observation space properly
     initial_env_config = phases[0].env_config if phases else base_config.env
