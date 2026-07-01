@@ -226,9 +226,7 @@ def train(config: Config) -> None:
 
     # Allow PyTorch to use TF32 (tensor float 32) on Ampere+ GPUs.
     # Must be set BEFORE any PyTorch operation (including torch.compile's lazy
-    # compilation at the first forward pass) to avoid the TensorFloat32 warning.
     # TF32 trades a tiny amount of floating-point precision for a significant
-    # throughput gain on matrix multiplications (~3× on A100/H100).
     torch.set_float32_matmul_precision("high")
 
     # Create directory path for training output
