@@ -14,7 +14,7 @@ class Config:
     # Number of perceived columns in an observation
     n_perceived_cols: int = 3
     # Enable 45-degree cone vision (more columns on upper rows)
-    cone_perception: bool = False
+    cone_perception: bool = True
 
 
 class Perceiver:
