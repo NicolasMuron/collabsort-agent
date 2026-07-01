@@ -13,6 +13,8 @@ class Config:
 
     # Number of perceived columns in an observation
     n_perceived_cols: int = 3
+    # Enable 45-degree cone vision (more columns on upper rows)
+    cone_perception: bool = False
 
 
 class Perceiver:
@@ -44,10 +46,22 @@ class Perceiver:
         objects: tuple[dict] = obs["moving_objects"]
         obj_map: dict = {(obj["coords"][0], obj["coords"][1]): obj for obj in objects}
 
-        perceived_cols = [
-            agent_col + col for col in range(self.config.n_perceived_cols)
-        ]
-        for row in self.treadmill_rows:
+        for row_index, row in enumerate(self.treadmill_rows):
+            if self.config.cone_perception:
+                # Cone vision: the lower treadmill sees the base width,
+                # the middle treadmill sees one column more, and the upper
+                # treadmill sees two columns more.
+                if row_index == 0:
+                    current_n_cols = self.config.n_perceived_cols + 2
+                elif row_index == 1 and len(self.treadmill_rows) > 1:
+                    current_n_cols = self.config.n_perceived_cols + 1
+                else:
+                    current_n_cols = self.config.n_perceived_cols
+            else:
+                current_n_cols = self.config.n_perceived_cols
+
+            perceived_cols = [agent_col + col for col in range(current_n_cols)]
+
             for col in perceived_cols:
                 obj_found = obj_map.get((row, col))
                 if obj_found:
