@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 import gymnasium as gym
 import numpy as np
+import torch
 import tyro
 from gym_collabsort.config import Action
 from torch.utils.tensorboard import SummaryWriter
@@ -225,8 +226,14 @@ def train(config: Config) -> None:
 
     logger = None
     if config.log_events:
-        # Initialize logging
-        logger = SummaryWriter(f"{train_dir}")
+        # Increase flush_secs to reduce I/O overhead during training;
+        # events will be persisted at most every 60 s instead of every 2 s.
+        logger = SummaryWriter(f"{train_dir}", flush_secs=60)
+
+    # Allow PyTorch to use TF32 (tensor float 32) on Ampere+ GPUs.
+    # TF32 trades a tiny amount of floating-point precision for a significant
+    # throughput gain on matrix multiplications and convolutions (~3× on A100).
+    torch.set_float32_matmul_precision("high")
 
     # Initialize environment
     env = gym.make("CollabSort-v0", config=config.env)
