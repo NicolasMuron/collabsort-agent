@@ -21,6 +21,8 @@ def make_perceiver(
             n_perceived_cols=n_perceived_cols, cone_perception=cone_perception
         ),
         treadmill_rows=env_config.treadmill_rows,
+        upper_treadmill_row=env_config.upper_treadmill_row,
+        middle_treadmill_row=env_config.middle_treadmill_row,
     )
     return perceiver, env_config
 
@@ -48,11 +50,11 @@ def test_perceiver_state_size() -> None:
 
             # --- CALCUL DYNAMIQUE DE LA TAILLE PAR LIGNE ---
             total_cols = 0
-            for row_index, _ in enumerate(perceiver.treadmill_rows):
+            for row in perceiver.treadmill_rows:
                 if cone_mode:
-                    if row_index == 0:
+                    if row == env_config.upper_treadmill_row:
                         total_cols += n_perceived_cols + 2
-                    elif row_index == 1 and len(perceiver.treadmill_rows) > 1:
+                    elif row == env_config.middle_treadmill_row:
                         total_cols += n_perceived_cols + 1
                     else:
                         total_cols += n_perceived_cols

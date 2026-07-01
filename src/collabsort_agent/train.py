@@ -143,6 +143,8 @@ def create_agent(config: Config, sample_obs: dict, rng: np.random.Generator) -> 
     perceiver = Perceiver(
         config=config.perception,
         treadmill_rows=config.env.treadmill_rows,
+        upper_treadmill_row=config.env.upper_treadmill_row,
+        middle_treadmill_row=config.env.middle_treadmill_row,
     )
     sample_sensory_state = perceiver.get_sensory_state(obs=sample_obs)
 

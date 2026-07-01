@@ -20,9 +20,31 @@ class Config:
 class Perceiver:
     """Class implementing the agent perception sense"""
 
-    def __init__(self, config: Config, treadmill_rows: list[int]) -> None:
+    def __init__(
+        self,
+        config: Config,
+        treadmill_rows: list[int],
+        upper_treadmill_row: int | None = None,
+        middle_treadmill_row: int | None = None,
+    ) -> None:
         self.config = config
         self.treadmill_rows = treadmill_rows
+        self.upper_treadmill_row = upper_treadmill_row
+        self.middle_treadmill_row = middle_treadmill_row
+
+    def _get_visible_column_count(self, row: int) -> int:
+        """Return how many columns are visible for a treadmill row."""
+
+        if not self.config.cone_perception:
+            return self.config.n_perceived_cols
+
+        if self.upper_treadmill_row is not None and row == self.upper_treadmill_row:
+            return self.config.n_perceived_cols + 2
+
+        if self.middle_treadmill_row is not None and row == self.middle_treadmill_row:
+            return self.config.n_perceived_cols + 1
+
+        return self.config.n_perceived_cols
 
     def get_sensory_state(self, obs: dict) -> np.ndarray:
         """Flatten an observation into a vector: the sensory state"""
@@ -46,19 +68,8 @@ class Perceiver:
         objects: tuple[dict] = obs["moving_objects"]
         obj_map: dict = {(obj["coords"][0], obj["coords"][1]): obj for obj in objects}
 
-        for row_index, row in enumerate(self.treadmill_rows):
-            if self.config.cone_perception:
-                # Cone vision: the lower treadmill sees the base width,
-                # the middle treadmill sees one column more, and the upper
-                # treadmill sees two columns more.
-                if row_index == 0:
-                    current_n_cols = self.config.n_perceived_cols + 2
-                elif row_index == 1 and len(self.treadmill_rows) > 1:
-                    current_n_cols = self.config.n_perceived_cols + 1
-                else:
-                    current_n_cols = self.config.n_perceived_cols
-            else:
-                current_n_cols = self.config.n_perceived_cols
+        for row in self.treadmill_rows:
+            current_n_cols = self._get_visible_column_count(row=row)
 
             perceived_cols = [agent_col + col for col in range(current_n_cols)]
 
