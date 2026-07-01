@@ -33,6 +33,9 @@ class Config:
     # Percentage of training time during which exploration probability is decayed
     decay_span: float = 0.5
 
+    # If enabled, reset the exploration decay at the start of each curriculum phase.
+    reset_exploration_per_phase: bool = False
+
     # ---------- Advantage Racing Diffusion ----------
 
     # Rule for ending evidence accumulation and choosing an action

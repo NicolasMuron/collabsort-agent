@@ -15,6 +15,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import trange
 
 from collabsort_agent.config import Config, save_cfg
+from collabsort_agent.decision.epsilon_greedy import EpsilonGreedy
 from collabsort_agent.train import EpisodeMetrics, create_agent
 
 
@@ -36,6 +37,14 @@ class CurriculumArgs:
 
     # Path to the curriculum JSON file
     curriculum_file: str = "curriculum.json"
+
+
+def compute_total_training_steps(
+    phases: list[CurriculumPhase], n_steps_episode: int
+) -> int:
+    """Return the total number of training steps across all curriculum phases."""
+
+    return sum(phase.n_episodes * n_steps_episode for phase in phases)
 
 
 def load_curriculum_from_json(
@@ -102,12 +111,22 @@ def train_curriculum(base_config: Config, phases: list[CurriculumPhase]) -> None
     initial_env_config = phases[0].env_config if phases else base_config.env
     temp_env = gym.make("CollabSort-v0", config=initial_env_config)
 
+    total_curriculum_steps = compute_total_training_steps(
+        phases=phases, n_steps_episode=base_config.n_steps_episode
+    )
+
     # Create agent ONCE. This agent will persist across all phases.
     agent = create_agent(
         config=base_config,
         sample_obs=temp_env.observation_space.sample(),
         rng=temp_env.np_random,
     )
+
+    if not base_config.decision.reset_exploration_per_phase:
+        if isinstance(agent.deliberator, EpsilonGreedy):
+            agent.deliberator.exploration_decay.reset(
+                total_steps=total_curriculum_steps
+            )
     temp_env.close()
 
     # Training time step (= number of time steps since beginning of training)
@@ -121,9 +140,10 @@ def train_curriculum(base_config: Config, phases: list[CurriculumPhase]) -> None
         print(f"Starting Phase {phase_idx + 1}/{len(phases)}: {phase.name}")
         print(f"{'=' * 50}\n")
 
-        # Reset exploration state for this new phase.
-        phase_steps = max(1, phase.n_episodes * base_config.n_steps_episode)
-        agent.deliberator.reset_for_phase(phase_steps=phase_steps)
+        # Reset exploration state for this new phase when requested.
+        if base_config.decision.reset_exploration_per_phase:
+            phase_steps = max(1, phase.n_episodes * base_config.n_steps_episode)
+            agent.deliberator.reset_for_phase(phase_steps=phase_steps)
 
         # Create the environment for this specific phase
         env = gym.make("CollabSort-v0", config=phase.env_config)
@@ -139,9 +159,14 @@ def train_curriculum(base_config: Config, phases: list[CurriculumPhase]) -> None
             # Episode loop
             while not ep_over:
                 # Agent chooses an action
+                decision_step = (
+                    phase_training_step
+                    if base_config.decision.reset_exploration_per_phase
+                    else global_training_step
+                )
                 action: Action = agent.act(
                     obs=obs,
-                    training_step=phase_training_step,
+                    training_step=decision_step,
                 )
 
                 # Take action and observe result

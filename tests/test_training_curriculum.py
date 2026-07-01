@@ -13,9 +13,22 @@ from collabsort_agent.memory import Config as MemoryConfig
 from collabsort_agent.metacognition import Config as MetaConfig
 from collabsort_agent.perception import Config as PerceptionConfig
 from collabsort_agent.train_curriculum import (
+    CurriculumPhase,
+    compute_total_training_steps,
     load_curriculum_from_json,
     train_curriculum,
 )
+
+
+def test_compute_total_training_steps() -> None:
+    """The total curriculum length should be the sum of all phase steps."""
+
+    phases = [
+        CurriculumPhase(name="phase-1", n_episodes=2, env_config=EnvConfig()),
+        CurriculumPhase(name="phase-2", n_episodes=3, env_config=EnvConfig()),
+    ]
+
+    assert compute_total_training_steps(phases=phases, n_steps_episode=10) == 50
 
 
 def test_train_curriculum(tmp_path) -> None:
