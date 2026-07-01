@@ -121,10 +121,15 @@ def train_curriculum(base_config: Config, phases: list[CurriculumPhase]) -> None
         print(f"Starting Phase {phase_idx + 1}/{len(phases)}: {phase.name}")
         print(f"{'=' * 50}\n")
 
+        # Reset exploration state for this new phase.
+        phase_steps = max(1, phase.n_episodes * base_config.n_steps_episode)
+        agent.deliberator.reset_for_phase(phase_steps=phase_steps)
+
         # Create the environment for this specific phase
         env = gym.make("CollabSort-v0", config=phase.env_config)
 
         # Loop over episodes for this phase
+        phase_training_step = 0
         for _ in trange(phase.n_episodes, desc=f"Training Phase {phase_idx + 1}"):
             # Reset environment and metrics for new episode
             obs, _ = env.reset()
@@ -136,7 +141,7 @@ def train_curriculum(base_config: Config, phases: list[CurriculumPhase]) -> None
                 # Agent chooses an action
                 action: Action = agent.act(
                     obs=obs,
-                    training_step=global_training_step,
+                    training_step=phase_training_step,
                 )
 
                 # Take action and observe result
@@ -157,6 +162,7 @@ def train_curriculum(base_config: Config, phases: list[CurriculumPhase]) -> None
                 ep_metrics.step += 1
 
                 # Move to next state
+                phase_training_step += 1
                 global_training_step += 1
                 obs = next_obs
                 ep_over = (

@@ -31,6 +31,10 @@ class EpsilonGreedy(Deliberator):
         # Current exploration probability (set on first choose_action call)
         self.epsilon: float = self.config.epsilon_start
 
+    def reset_for_phase(self, phase_steps: int) -> None:
+        self.exploration_decay.reset(total_steps=phase_steps)
+        self.epsilon = self.config.epsilon_start
+
     def choose_action(
         self,
         state: np.ndarray,

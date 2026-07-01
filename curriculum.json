@@ -15,7 +15,7 @@
     "env_overrides": {
       "robot_enabled": true,
       "robot_slow_mode": true,
-      "robot_strategy": "random_object",
+      "robot_strategy": "best_object",
       "reward_noise_std": 0.0,
       "enable_reward_change": false,
       "active_treadmills": ["middle", "lower"]
@@ -27,10 +27,10 @@
     "env_overrides": {
       "robot_enabled": true,
       "robot_slow_mode": false,
-      "robot_strategy": "random_object",
+      "robot_strategy": "best_object",
       "reward_noise_std": 0.0,
       "enable_reward_change": false,
-      "active_treadmills": ["upper", "middle", "lower"]
+      "active_treadmills": ["middle", "lower"]
     }
   },
   {
@@ -38,7 +38,7 @@
     "n_episodes": 150,
     "env_overrides": {
       "robot_enabled": true,
-      "robot_slow_mode": true,
+      "robot_slow_mode": false,
       "robot_strategy": "best_object",
       "reward_noise_std": 0.0,
       "enable_reward_change": false,
@@ -53,7 +53,7 @@
       "robot_slow_mode": false,
       "robot_strategy": "best_object",
       "reward_noise_std": 0.0,
-      "enable_reward_change": false,
+      "enable_reward_change": true,
       "reward_change_step": 150000,
       "active_treadmills": ["upper", "middle", "lower"]
     }

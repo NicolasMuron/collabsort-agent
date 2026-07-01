@@ -7,6 +7,7 @@ from gym_collabsort.config import Config as EnvConfig
 from collabsort_agent.config import Config, load_cfg, save_cfg
 from collabsort_agent.decision import Config as DecisionConfig
 from collabsort_agent.learning import Config as LearningConfig
+from collabsort_agent.learning.c51 import C51
 from collabsort_agent.learning.n_step_learning import NStepLearning
 from collabsort_agent.metacognition import Config as MetaConfig, MetaController
 from collabsort_agent.memory import Config as MemoryConfig
@@ -78,3 +79,38 @@ def test_n_step_learning_config_is_propagated() -> None:
 
     assert isinstance(estimator, NStepLearning)
     assert estimator.n_step == 5
+
+
+def test_c51_learning_config_is_propagated() -> None:
+    """Verify C51-specific config is exposed to the estimator."""
+
+    learning_cfg = LearningConfig(
+        algorithm="c51",
+        n_atoms=51,
+        v_min=-10.0,
+        v_max=10.0,
+    )
+    cfg = Config(
+        env=EnvConfig(),
+        perception=PerceptionConfig(),
+        memory=MemoryConfig(),
+        decision=DecisionConfig(),
+        learning=learning_cfg,
+        meta=MetaConfig(),
+    )
+    meta_ctrl = MetaController(
+        config=MetaConfig(), learning_cfg=learning_cfg, decision_cfg=DecisionConfig()
+    )
+
+    estimator = _build_estimator(
+        algo_name="c51",
+        config=cfg,
+        n_actions=4,
+        state_size=5,
+        meta_ctrl=meta_ctrl,
+    )
+
+    assert isinstance(estimator, C51)
+    assert estimator.n_atoms == 51
+    assert estimator.v_min == -10.0
+    assert estimator.v_max == 10.0
