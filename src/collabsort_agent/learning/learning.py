@@ -26,7 +26,6 @@ class Config:
         "n_step",
         "noisy",
         "rainbow",
-        "c51",
     ] = "dqn"
 
     # Discount factor for Temporal-Difference algorithms

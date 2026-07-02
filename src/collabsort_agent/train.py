@@ -27,7 +27,6 @@ from collabsort_agent.decision.exploration_decay import (
 )
 
 # Learners
-from collabsort_agent.learning.c51 import C51
 from collabsort_agent.learning.dd_dqn import DoubleDuelingDQN
 from collabsort_agent.learning.double_dqn import DoubleDQN
 from collabsort_agent.learning.dueling_dqn import DuelingDQN
@@ -57,8 +56,6 @@ def _build_estimator(
         return Qlearning(config=c_learn, n_actions=n_actions, meta_ctrl=meta_ctrl)
     elif algo_name == "dqn":
         return DQN(config=c_learn, n_actions=n_actions, state_size=state_size)
-    elif algo_name == "c51":
-        return C51(config=c_learn, n_actions=n_actions, state_size=state_size)
     elif algo_name == "dueling_dqn":
         return DuelingDQN(config=c_learn, n_actions=n_actions, state_size=state_size)
     elif algo_name == "ddqn":
