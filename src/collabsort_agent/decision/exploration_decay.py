@@ -66,7 +66,7 @@ class ExponentialExplorationDecay(ExplorationDecay):
 
     def _reset_state(self) -> None:
         # Maximal difference between current and minimum values of epsilon for stopping decay
-        epsilon_delta = 0.0001
+        epsilon_delta = 0.1
 
         # Pre-compute the decay rate λ
         self._decay_rate: float = (
