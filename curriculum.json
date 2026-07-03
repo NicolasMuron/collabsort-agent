@@ -18,7 +18,7 @@
       "robot_strategy": "random_object",
       "reward_noise_std": 0.0,
       "enable_reward_change": false,
-      "active_treadmills": ["upper", "middle"]
+      "active_treadmills": ["middle", "lower"]
     }
   },
   {
