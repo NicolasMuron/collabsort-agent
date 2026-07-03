@@ -48,7 +48,6 @@ def test_perceiver_state_size() -> None:
 
             assert sensory_state.ndim == 1
 
-            # --- CALCUL DYNAMIQUE DE LA TAILLE PAR LIGNE ---
             total_cols = 0
             for row in perceiver.treadmill_rows:
                 if cone_mode:
