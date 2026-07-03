@@ -5,7 +5,7 @@ Unit tests for the Dueling DQN algorithm.
 import torch
 
 from collabsort_agent.learning import Config as LearningConfig
-from collabsort_agent.learning.dueling_dqn import Dueling_Network, DuelingDQN
+from collabsort_agent.learning.dueling_dqn import DuelingDQN, Dueling_Network
 from tests.learning.test_dqn import TestDQN
 
 

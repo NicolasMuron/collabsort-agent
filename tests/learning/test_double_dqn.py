@@ -55,7 +55,6 @@ class TestDoubleDQN(TestDQN):
         """
         n_actions = 3
         agent = self._make_dqn(n_actions=n_actions, state_size=5)
-
         # Create a dummy next state tensor
         next_states = torch.zeros((1, 5), dtype=torch.float32).to(agent.device)
 
