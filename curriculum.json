@@ -15,10 +15,10 @@
     "env_overrides": {
       "robot_enabled": true,
       "robot_slow_mode": true,
-      "robot_strategy": "closest_object",
+      "robot_strategy": "random_object",
       "reward_noise_std": 0.0,
       "enable_reward_change": false,
-      "active_treadmills": ["middle", "lower"]
+      "active_treadmills": ["upper", "middle"]
     }
   },
   {
