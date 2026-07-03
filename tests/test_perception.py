@@ -38,7 +38,7 @@ def sample_obs(env_config: EnvConfig) -> dict:
 
 def test_perceiver_state_size() -> None:
     for cone_mode in (False, True):
-        for n_perceived_cols in (1, 3, 6):
+        for n_perceived_cols in (1, 2, 3, 4, 5, 6):
             perceiver, env_config = make_perceiver(
                 n_perceived_cols=n_perceived_cols, cone_perception=cone_mode
             )

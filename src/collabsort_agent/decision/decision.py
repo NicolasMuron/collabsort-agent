@@ -28,7 +28,7 @@ class Config:
     epsilon_min: float = 0.05
 
     # Exploration probability decay algorithm
-    exploration_decay: Literal["lin", "exp"] = "exp"
+    exploration_decay: Literal["lin", "exp"] = "lin"
 
     # Percentage of training time during which exploration probability is decayed
     decay_span: float = 0.5
