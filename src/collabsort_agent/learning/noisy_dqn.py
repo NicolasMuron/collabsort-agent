@@ -54,7 +54,7 @@ class NoisyLinear(nn.Module):
         epsilon_in = self._scale_noise(self.in_features)
         epsilon_out = self._scale_noise(self.out_features)
 
-        # On extrait l'attribut brut en garantissant au typeur qu'il s'agit d'un Tensor
+        # Assign the generated noise to the buffers for use in the forward pass
         w_eps = self.weight_epsilon
         b_eps = self.bias_epsilon
 
@@ -144,7 +144,7 @@ class NoisyDQN(DQN):
         """Perform a gradient descent step and reset noisy network layers."""
         super()._optimize_network(loss)
 
-        # On récupère la méthode dynamiquement pour contourner l'union type Tensor | Module
+        # Reset noise in the Q-network after each optimization step to ensure fresh exploration
         reset_fn = getattr(self.q_network, "reset_noise", None)
         if callable(reset_fn):
             reset_fn()

@@ -36,11 +36,8 @@ def test_greedy_lifecycle_methods() -> None:
 
     deliberator = Greedy(config=config, estimator=estimator, rng=rng)
 
-    # Ces appels vont exécuter les lignes de 'pass' et faire monter la couverture à 100%
-    # On passe None pour le logger car la méthode Greedy.log_episode n'en fait rien
     deliberator.log_episode(logger=None, episode=1)
     deliberator.save_state(dir="dummy_path")
     deliberator.load_state(dir="dummy_path")
 
-    # Un assert simple pour valider que le test s'est terminé sans planter
     assert True

@@ -6,6 +6,7 @@ import time
 from dataclasses import dataclass
 
 import gymnasium as gym
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import tyro
@@ -40,6 +41,63 @@ from collabsort_agent.learning.rainbow_dqn import RainbowDQN
 from collabsort_agent.memory import Memory
 from collabsort_agent.metacognition import MetaController
 from collabsort_agent.perception import Perceiver
+
+
+@dataclass
+class EpisodeMetrics:
+    """Episode metrics"""
+
+    # Cumulated reward
+    reward: float = 0
+
+    # Number of collisions
+    collisions: int = 0
+
+    # Number of collected objects
+    collected_objects: int = 0
+
+    # Episode time step (= number of time steps since beginning of episode)
+    step: int = 0
+
+    # Number of steps per second
+    sps: float = 0
+
+    # Number of direction changes (UP/DOWN oscillations)
+    oscillations: int = 0
+
+    def log(
+        self,
+        logger: SummaryWriter | None,
+        episode: int,
+    ) -> None:
+        """Log metrics"""
+
+        if logger is not None:
+            logger.add_scalar(
+                tag="training/cumulated_reward",
+                scalar_value=self.reward,
+                global_step=episode,
+            )
+            logger.add_scalar(
+                tag="training/collisions",
+                scalar_value=self.collisions,
+                global_step=episode,
+            )
+            logger.add_scalar(
+                tag="training/collected_objects",
+                scalar_value=self.collected_objects,
+                global_step=episode,
+            )
+            logger.add_scalar(
+                tag="training/steps_per_seconds",
+                scalar_value=self.sps,
+                global_step=episode,
+            )
+            logger.add_scalar(
+                tag="training/policy_oscillations",
+                scalar_value=self.oscillations,
+                global_step=episode,
+            )
 
 
 def _build_estimator(
@@ -171,61 +229,10 @@ def create_agent(config: Config, sample_obs: dict, rng: np.random.Generator) -> 
     return Agent(perceiver=perceiver, memory=memory, deliberator=deliberator)
 
 
-@dataclass
-class EpisodeMetrics:
-    """Episode metrics"""
-
-    # Cumulated reward
-    reward: float = 0
-
-    # Number of collisions
-    collisions: int = 0
-
-    # Number of collected objects
-    collected_objects: int = 0
-
-    # Episode time step (= number of time steps since beginning of episode)
-    step: int = 0
-
-    # Number of steps per second
-    sps: float = 0
-
-    def log(
-        self,
-        logger: SummaryWriter | None,
-        episode: int,
-    ) -> None:
-        """Log metrics"""
-
-        if logger is not None:
-            logger.add_scalar(
-                tag="training/cumulated_reward",
-                scalar_value=self.reward,
-                global_step=episode,
-            )
-            logger.add_scalar(
-                tag="training/collisions",
-                scalar_value=self.collisions,
-                global_step=episode,
-            )
-            logger.add_scalar(
-                tag="training/collected_objects",
-                scalar_value=self.collected_objects,
-                global_step=episode,
-            )
-            logger.add_scalar(
-                tag="training/steps_per_seconds",
-                scalar_value=self.sps,
-                global_step=episode,
-            )
-
-
 def train(config: Config) -> None:
     """Train an agent"""
 
     # Allow PyTorch to use TF32 (tensor float 32) on Ampere+ GPUs.
-    # Must be set BEFORE any PyTorch operation (including torch.compile's lazy
-    # TF32 trades a tiny amount of floating-point precision for a significant
     torch.set_float32_matmul_precision("high")
 
     # Create directory path for training output
@@ -233,8 +240,6 @@ def train(config: Config) -> None:
 
     logger = None
     if config.log_events:
-        # Increase flush_secs to reduce I/O overhead during training;
-        # events will be persisted at most every 60 s instead of every 2 s.
         logger = SummaryWriter(f"{train_dir}", flush_secs=60)
 
     # Initialize environment
@@ -250,20 +255,59 @@ def train(config: Config) -> None:
 
     start_time = time.time()
 
+    FIGURE_LOG_FREQ = 20
+    action_counts_history: list[np.ndarray] = []
+    q_values_history: list[np.ndarray] = []
+
     # Global loop
     for episode in trange(config.n_episodes, desc="Training progress"):
         # Reset environment and metrics for new episode
         obs, _ = env.reset()
         ep_metrics = EpisodeMetrics()
+        action_history: list[int] = []
+        ep_q_values: list[np.ndarray] = []
         ep_over: bool = False
+
+        # Previous action string for oscillation counting
+        prev_action_str: str | None = None
 
         # Episode loop
         while not ep_over:
+            try:
+                sensory_state = agent.perceiver.get_sensory_state(obs=obs)
+                ext_state = agent.memory.get_extended_state(sensory_state=sensory_state)
+                q_vals = agent.deliberator.estimator.get_action_values(ext_state)
+                ep_q_values.append(q_vals)
+            except Exception:
+                pass
+
             # Agent chooses an action
             action: Action = agent.act(
                 obs=obs,
                 training_step=training_step,
             )
+
+            # Count oscillations (UP/DOWN direction changes)
+            try:
+                current_action_str = Action(action).name
+            except Exception:
+                current_action_str = getattr(action, "name", str(action))
+
+            if prev_action_str is not None:
+                if (prev_action_str == "UP" and current_action_str == "DOWN") or (
+                    prev_action_str == "DOWN" and current_action_str == "UP"
+                ):
+                    ep_metrics.oscillations += 1
+
+            prev_action_str = current_action_str
+
+            try:
+                action_history.append(int(action.value))
+            except Exception:
+                try:
+                    action_history.append(int(getattr(action, "value", 0)))
+                except Exception:
+                    action_history.append(0)
 
             # Take action and observe result
             next_obs, reward, terminated, truncated, info = env.step(action=action)
@@ -296,6 +340,103 @@ def train(config: Config) -> None:
             episode=episode,
         )
         agent.log_episode(logger=logger, episode=episode)
+
+        # Save Q-values history for heatmap visualization
+        if len(ep_q_values) > 0:
+            q_values_history.append(np.mean(ep_q_values, axis=0))
+
+        # --- LOGGING OF ACTION DISTRIBUTION AND Q-VALUES HEATMAP ---
+        if logger is not None and len(action_history) > 0:
+            try:
+                n_actions = int(agent.deliberator.estimator.n_actions)
+            except Exception:
+                n_actions = int(len(Action))
+
+            counts = np.bincount(
+                np.array(action_history, dtype=np.int32), minlength=n_actions
+            )
+
+            # Record action counts for heatmap
+            try:
+                action_counts_history.append(counts)
+            except Exception:
+                action_counts_history = [counts]
+
+            # Labeled bar plot for the episode (easier to read categorical distribution)
+            try:
+                fig, ax = plt.subplots(figsize=(6, 3))
+                labels = []
+                for i in range(n_actions):
+                    try:
+                        labels.append(Action(i).name)
+                    except Exception:
+                        labels.append(f"action_{i}")
+
+                ax.bar(range(n_actions), counts, color="C0")
+                ax.set_xticks(range(n_actions))
+                ax.set_xticklabels(labels, rotation=45, ha="right")
+                ax.set_ylabel("count")
+                ax.set_title("Action distribution this episode")
+                fig.tight_layout()
+                logger.add_figure(
+                    tag="actions/distribution_figure", figure=fig, global_step=episode
+                )
+                plt.close(fig)
+            except Exception:
+                # Don't fail training if plotting/logging figure fails
+                pass
+
+            # Periodically log the heatmap of actions over recorded episodes
+            try:
+                if episode % FIGURE_LOG_FREQ == 0 and len(action_counts_history) > 0:
+                    mat = np.vstack(action_counts_history)
+                    fig, ax = plt.subplots(figsize=(6, 3))
+                    im = ax.imshow(mat.T, aspect="auto", cmap="viridis")
+                    ax.set_xlabel("episode")
+                    ax.set_ylabel("action")
+                    ax.set_title("Action distribution heatmap")
+                    ax.set_yticks(range(mat.shape[1]))
+                    labels = []
+                    for i in range(mat.shape[1]):
+                        try:
+                            labels.append(Action(i).name)
+                        except Exception:
+                            labels.append(f"action_{i}")
+                    ax.set_yticklabels(labels)
+                    fig.colorbar(im, ax=ax, label="count")
+                    fig.tight_layout()
+                    logger.add_figure("actions/heatmap", fig, global_step=episode)
+                    plt.close(fig)
+            except Exception:
+                pass
+
+            # --- HEATMAP OF Q-VALUES PER ACTION ---
+            try:
+                if episode % FIGURE_LOG_FREQ == 0 and len(q_values_history) > 0:
+                    q_mat = np.vstack(q_values_history)
+                    fig_q, ax_q = plt.subplots(figsize=(6, 3))
+                    im_q = ax_q.imshow(q_mat.T, aspect="auto", cmap="coolwarm")
+                    ax_q.set_xlabel("episode")
+                    ax_q.set_ylabel("action")
+                    ax_q.set_title("Mean Q-Values Heatmap per Action")
+                    ax_q.set_yticks(range(q_mat.shape[1]))
+
+                    labels = []
+                    for i in range(q_mat.shape[1]):
+                        try:
+                            labels.append(Action(i).name)
+                        except Exception:
+                            labels.append(f"action_{i}")
+                    ax_q.set_yticklabels(labels)
+
+                    fig_q.colorbar(im_q, ax=ax_q, label="Q-Value")
+                    fig_q.tight_layout()
+                    logger.add_figure(
+                        "charts/q_values_heatmap", fig_q, global_step=episode
+                    )
+                    plt.close(fig_q)
+            except Exception:
+                pass
 
     env.close()
 
