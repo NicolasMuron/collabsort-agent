@@ -3,7 +3,7 @@ from collabsort_agent.decision import Deliberator
 
 
 class Greedy(Deliberator):
-    """Sélection purement gloutonne. L'exploration est gérée en interne par NoisyNet."""
+    """Greedy deliberator that selects the action with the highest estimated value."""
 
     def choose_action(self, state: np.ndarray, training_step: int) -> int:
         action_values = self.estimator.get_action_values(state=state)

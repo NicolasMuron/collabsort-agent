@@ -107,15 +107,15 @@ class NoisyDQN(DQN):
     """DQN Agent utilizing Noisy Networks instead of Epsilon-Greedy exploration."""
 
     def __init__(self, config: LearningConfig, n_actions: int, state_size: int):
-        # 1. Call parent constructor to initialize baseline structures (buffer, device...)
+        # Call parent constructor to initialize baseline structures (buffer, device...)
         super().__init__(config=config, n_actions=n_actions, state_size=state_size)
 
-        # 2. Properly instantiate noisy networks on the correct device
+        # Properly instantiate noisy networks on the correct device
         self.q_network = NoisyQNetwork(state_size, n_actions).to(self.device)
         self.target_network = NoisyQNetwork(state_size, n_actions).to(self.device)
         self.target_network.load_state_dict(self.q_network.state_dict())
 
-        # 3. CRUCIAL: Recreate the optimizer to bind to the actual parameters of NoisyQNetwork
+        # Recreate the optimizer to bind to the actual parameters of NoisyQNetwork
         self.optimizer = torch.optim.Adam(
             self.q_network.parameters(), lr=self.config.lr
         )

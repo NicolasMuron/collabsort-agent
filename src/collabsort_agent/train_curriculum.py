@@ -7,12 +7,15 @@ import json
 import time
 from dataclasses import dataclass
 
+import numpy as np
 import gymnasium as gym
 import torch
 import tyro
 from gym_collabsort.config import Action, Config as EnvConfig, RobotStrategy
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import trange
+
+from collabsort_agent.metrics_tracker import HeatmapTracker
 
 from collabsort_agent.config import Config, save_cfg
 from collabsort_agent.decision.epsilon_greedy import EpsilonGreedy
@@ -133,6 +136,7 @@ def train_curriculum(base_config: Config, phases: list[CurriculumPhase]) -> None
     global_training_step: int = 0
     global_episode: int = 0
     start_time = time.time()
+    heatmap_tracker = HeatmapTracker(log_freq=20)
 
     # Loop over each curriculum phase
     for phase_idx, phase in enumerate(phases):
@@ -151,13 +155,28 @@ def train_curriculum(base_config: Config, phases: list[CurriculumPhase]) -> None
         # Loop over episodes for this phase
         phase_training_step = 0
         for _ in trange(phase.n_episodes, desc=f"Training Phase {phase_idx + 1}"):
-            # Reset environment and metrics for new episode
+            # Reset environment and memory for new episode
             obs, _ = env.reset()
+            agent.reset()
             ep_metrics = EpisodeMetrics()
+            action_history: list[int] = []
             ep_over: bool = False
+            episode_visitation = np.zeros(base_config.env.n_rows + 1, dtype=np.int32)
+            episode_collisions = np.zeros(base_config.env.n_rows + 1, dtype=np.int32)
+            episode_spatial_actions: dict[int, dict[int, int]] = {}
+
+            # Previous action string for oscillation counting
+            prev_action_str: str | None = None
 
             # Episode loop
             while not ep_over:
+                # Extract agent row for spatial tracking
+                agent_row = int(obs["self"]["coords"][0])
+
+                # Record visitation
+                if 1 <= agent_row <= base_config.env.n_rows:
+                    episode_visitation[agent_row] += 1
+
                 # Agent chooses an action
                 decision_step = (
                     phase_training_step
@@ -168,6 +187,29 @@ def train_curriculum(base_config: Config, phases: list[CurriculumPhase]) -> None
                     obs=obs,
                     training_step=decision_step,
                 )
+
+                # Count oscillations (UP/DOWN direction changes)
+                current_action_str = action.name
+
+                if prev_action_str is not None:
+                    if (prev_action_str == "UP" and current_action_str == "DOWN") or (
+                        prev_action_str == "DOWN" and current_action_str == "UP"
+                    ):
+                        ep_metrics.oscillations += 1
+
+                prev_action_str = current_action_str
+
+                if current_action_str in ("UP", "DOWN"):
+                    ep_metrics.movement_actions += 1
+
+                action_idx = int(action.value)
+                action_history.append(action_idx)
+
+                if agent_row not in episode_spatial_actions:
+                    episode_spatial_actions[agent_row] = {}
+                if action_idx not in episode_spatial_actions[agent_row]:
+                    episode_spatial_actions[agent_row][action_idx] = 0
+                episode_spatial_actions[agent_row][action_idx] += 1
 
                 # Take action and observe result
                 next_obs, reward, terminated, truncated, info = env.step(action=action)
@@ -184,6 +226,20 @@ def train_curriculum(base_config: Config, phases: list[CurriculumPhase]) -> None
                 ep_metrics.reward += reward
                 ep_metrics.collisions += info["n_collisions"]
                 ep_metrics.collected_objects += info["n_placed_objects"]
+                ep_metrics.robot_collected_objects += info.get(
+                    "robot_placed_objects", 0
+                )
+                ep_metrics.missed_objects += info.get("n_fallen_objects", 0)
+
+                if info.get("agent_picked_value") is not None:
+                    ep_metrics.picked_values.append(info["agent_picked_value"])
+
+                if (
+                    info.get("agent_collision")
+                    and 1 <= agent_row <= base_config.env.n_rows
+                ):
+                    episode_collisions[agent_row] += 1
+
                 ep_metrics.step += 1
 
                 # Move to next state
@@ -205,6 +261,24 @@ def train_curriculum(base_config: Config, phases: list[CurriculumPhase]) -> None
                 episode=global_episode,
             )
             agent.log_episode(logger=logger, episode=global_episode)
+
+            # --- HEATMAPS ---
+            try:
+                n_actions = int(agent.deliberator.estimator.n_actions)
+            except Exception:
+                n_actions = int(len(Action))
+
+            heatmap_tracker.update(
+                action_history=action_history,
+                picked_values=ep_metrics.picked_values,
+                episode_visitation=episode_visitation,
+                episode_collisions=episode_collisions,
+                spatial_actions=episode_spatial_actions,
+                n_actions=n_actions,
+            )
+            heatmap_tracker.log_heatmaps(
+                logger=logger, episode=global_episode, n_actions=n_actions
+            )
 
             # Increment global episode counter
             global_episode += 1

@@ -3,10 +3,9 @@ Train an agent.
 """
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import gymnasium as gym
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import tyro
@@ -16,6 +15,7 @@ from tqdm import trange
 
 from collabsort_agent.agent import Agent
 from collabsort_agent.config import Config, save_cfg
+from collabsort_agent.metrics_tracker import HeatmapTracker
 
 # Decisions
 from collabsort_agent.decision.ard import ARD
@@ -36,9 +36,14 @@ from collabsort_agent.learning.per import PER
 from collabsort_agent.learning.noisy_dqn import NoisyDQN
 from collabsort_agent.learning.n_step_learning import NStepLearning
 from collabsort_agent.learning.q_learning import Qlearning
-from collabsort_agent.learning.rainbow_dqn import RainbowDQN
 
-from collabsort_agent.memory import Memory
+from collabsort_agent.memory import (
+    GRUMemory,
+    Memory,
+    StackMemory,
+    StackTargetMemory,
+    TargetMemory,
+)
 from collabsort_agent.metacognition import MetaController
 from collabsort_agent.perception import Perceiver
 
@@ -64,6 +69,16 @@ class EpisodeMetrics:
 
     # Number of direction changes (UP/DOWN oscillations)
     oscillations: int = 0
+
+    # Number of movement actions
+    movement_actions: int = 0
+
+    # Picked object values for this episode
+    picked_values: list[float] = field(default_factory=list)
+
+    # Added metrics
+    robot_collected_objects: int = 0
+    missed_objects: int = 0
 
     def log(
         self,
@@ -93,9 +108,28 @@ class EpisodeMetrics:
                 scalar_value=self.sps,
                 global_step=episode,
             )
+
+            if self.step > 0:
+                logger.add_scalar(
+                    tag="training/movement_ratio",
+                    scalar_value=self.movement_actions / self.step,
+                    global_step=episode,
+                )
+            if len(self.picked_values) > 0:
+                logger.add_scalar(
+                    tag="training/avg_reward_per_object",
+                    scalar_value=sum(self.picked_values) / len(self.picked_values),
+                    global_step=episode,
+                )
+
             logger.add_scalar(
-                tag="training/policy_oscillations",
-                scalar_value=self.oscillations,
+                tag="training/robot_collected_objects",
+                scalar_value=self.robot_collected_objects,
+                global_step=episode,
+            )
+            logger.add_scalar(
+                tag="training/missed_objects",
+                scalar_value=self.missed_objects,
                 global_step=episode,
             )
 
@@ -124,13 +158,6 @@ def _build_estimator(
         )
     elif algo_name == "per":
         return PER(config=c_learn, n_actions=n_actions, state_size=state_size)
-    elif algo_name == "rainbow":
-        return RainbowDQN(
-            config=c_learn,
-            n_actions=n_actions,
-            state_size=state_size,
-            n_step=c_learn.n_step,
-        )
     elif algo_name == "n_step":
         return NStepLearning(
             config=c_learn,
@@ -203,9 +230,33 @@ def create_agent(config: Config, sample_obs: dict, rng: np.random.Generator) -> 
     )
     sample_sensory_state = perceiver.get_sensory_state(obs=sample_obs)
 
-    if config.memory.type != "none":
-        raise ValueError(f"Unrecognized memory type: {config.memory.type}")
-    memory = Memory()
+    # Build memory module
+    mem_type = config.memory.type
+    n_cols_per_row = {
+        row: perceiver._get_visible_column_count(row=row)
+        for row in config.env.treadmill_rows
+    }
+
+    if mem_type == "none":
+        memory: Memory = Memory()
+    elif mem_type == "stack":
+        memory = StackMemory(config=config.memory)
+    elif mem_type == "target":
+        memory = TargetMemory(
+            config=config.memory,
+            treadmill_rows=config.env.treadmill_rows,
+            n_cols_per_row=n_cols_per_row,
+        )
+    elif mem_type == "stack+target":
+        memory = StackTargetMemory(
+            config=config.memory,
+            treadmill_rows=config.env.treadmill_rows,
+            n_cols_per_row=n_cols_per_row,
+        )
+    elif mem_type == "gru":
+        memory = GRUMemory(config=config.memory, input_size=len(sample_sensory_state))
+    else:
+        raise ValueError(f"Unrecognized memory type: {mem_type}")
 
     sample_extended_state = memory.get_extended_state(
         sensory_state=sample_sensory_state
@@ -255,31 +306,31 @@ def train(config: Config) -> None:
 
     start_time = time.time()
 
-    FIGURE_LOG_FREQ = 20
-    action_counts_history: list[np.ndarray] = []
-    q_values_history: list[np.ndarray] = []
+    heatmap_tracker = HeatmapTracker(log_freq=20)
 
     # Global loop
     for episode in trange(config.n_episodes, desc="Training progress"):
-        # Reset environment and metrics for new episode
+        # Reset environment and memory for new episode
         obs, _ = env.reset()
+        agent.reset()
         ep_metrics = EpisodeMetrics()
         action_history: list[int] = []
-        ep_q_values: list[np.ndarray] = []
         ep_over: bool = False
+        episode_visitation = np.zeros(config.env.n_rows + 1, dtype=np.int32)
+        episode_collisions = np.zeros(config.env.n_rows + 1, dtype=np.int32)
+        episode_spatial_actions: dict[int, dict[int, int]] = {}
 
         # Previous action string for oscillation counting
         prev_action_str: str | None = None
 
         # Episode loop
         while not ep_over:
-            try:
-                sensory_state = agent.perceiver.get_sensory_state(obs=obs)
-                ext_state = agent.memory.get_extended_state(sensory_state=sensory_state)
-                q_vals = agent.deliberator.estimator.get_action_values(ext_state)
-                ep_q_values.append(q_vals)
-            except Exception:
-                pass
+            # Extract agent row for spatial tracking
+            agent_row = int(obs["self"]["coords"][0])
+
+            # Record visitation
+            if 1 <= agent_row <= config.env.n_rows:
+                episode_visitation[agent_row] += 1
 
             # Agent chooses an action
             action: Action = agent.act(
@@ -288,10 +339,7 @@ def train(config: Config) -> None:
             )
 
             # Count oscillations (UP/DOWN direction changes)
-            try:
-                current_action_str = Action(action).name
-            except Exception:
-                current_action_str = getattr(action, "name", str(action))
+            current_action_str = action.name
 
             if prev_action_str is not None:
                 if (prev_action_str == "UP" and current_action_str == "DOWN") or (
@@ -301,13 +349,17 @@ def train(config: Config) -> None:
 
             prev_action_str = current_action_str
 
-            try:
-                action_history.append(int(action.value))
-            except Exception:
-                try:
-                    action_history.append(int(getattr(action, "value", 0)))
-                except Exception:
-                    action_history.append(0)
+            if current_action_str in ("UP", "DOWN"):
+                ep_metrics.movement_actions += 1
+
+            action_idx = int(action.value)
+            action_history.append(action_idx)
+
+            if agent_row not in episode_spatial_actions:
+                episode_spatial_actions[agent_row] = {}
+            if action_idx not in episode_spatial_actions[agent_row]:
+                episode_spatial_actions[agent_row][action_idx] = 0
+            episode_spatial_actions[agent_row][action_idx] += 1
 
             # Take action and observe result
             next_obs, reward, terminated, truncated, info = env.step(action=action)
@@ -324,6 +376,15 @@ def train(config: Config) -> None:
             ep_metrics.reward += reward
             ep_metrics.collisions += info["n_collisions"]
             ep_metrics.collected_objects += info["n_placed_objects"]
+            ep_metrics.robot_collected_objects += info.get("robot_placed_objects", 0)
+            ep_metrics.missed_objects += info.get("n_fallen_objects", 0)
+
+            if info.get("agent_picked_value") is not None:
+                ep_metrics.picked_values.append(info["agent_picked_value"])
+
+            if info.get("agent_collision") and 1 <= agent_row <= config.env.n_rows:
+                episode_collisions[agent_row] += 1
+
             ep_metrics.step += 1
 
             # Move to next state
@@ -341,102 +402,23 @@ def train(config: Config) -> None:
         )
         agent.log_episode(logger=logger, episode=episode)
 
-        # Save Q-values history for heatmap visualization
-        if len(ep_q_values) > 0:
-            q_values_history.append(np.mean(ep_q_values, axis=0))
+        # --- HEATMAPS ---
+        try:
+            n_actions = int(agent.deliberator.estimator.n_actions)
+        except Exception:
+            n_actions = int(len(Action))
 
-        # --- LOGGING OF ACTION DISTRIBUTION AND Q-VALUES HEATMAP ---
-        if logger is not None and len(action_history) > 0:
-            try:
-                n_actions = int(agent.deliberator.estimator.n_actions)
-            except Exception:
-                n_actions = int(len(Action))
-
-            counts = np.bincount(
-                np.array(action_history, dtype=np.int32), minlength=n_actions
-            )
-
-            # Record action counts for heatmap
-            try:
-                action_counts_history.append(counts)
-            except Exception:
-                action_counts_history = [counts]
-
-            # Labeled bar plot for the episode (easier to read categorical distribution)
-            try:
-                fig, ax = plt.subplots(figsize=(6, 3))
-                labels = []
-                for i in range(n_actions):
-                    try:
-                        labels.append(Action(i).name)
-                    except Exception:
-                        labels.append(f"action_{i}")
-
-                ax.bar(range(n_actions), counts, color="C0")
-                ax.set_xticks(range(n_actions))
-                ax.set_xticklabels(labels, rotation=45, ha="right")
-                ax.set_ylabel("count")
-                ax.set_title("Action distribution this episode")
-                fig.tight_layout()
-                logger.add_figure(
-                    tag="actions/distribution_figure", figure=fig, global_step=episode
-                )
-                plt.close(fig)
-            except Exception:
-                # Don't fail training if plotting/logging figure fails
-                pass
-
-            # Periodically log the heatmap of actions over recorded episodes
-            try:
-                if episode % FIGURE_LOG_FREQ == 0 and len(action_counts_history) > 0:
-                    mat = np.vstack(action_counts_history)
-                    fig, ax = plt.subplots(figsize=(6, 3))
-                    im = ax.imshow(mat.T, aspect="auto", cmap="viridis")
-                    ax.set_xlabel("episode")
-                    ax.set_ylabel("action")
-                    ax.set_title("Action distribution heatmap")
-                    ax.set_yticks(range(mat.shape[1]))
-                    labels = []
-                    for i in range(mat.shape[1]):
-                        try:
-                            labels.append(Action(i).name)
-                        except Exception:
-                            labels.append(f"action_{i}")
-                    ax.set_yticklabels(labels)
-                    fig.colorbar(im, ax=ax, label="count")
-                    fig.tight_layout()
-                    logger.add_figure("actions/heatmap", fig, global_step=episode)
-                    plt.close(fig)
-            except Exception:
-                pass
-
-            # --- HEATMAP OF Q-VALUES PER ACTION ---
-            try:
-                if episode % FIGURE_LOG_FREQ == 0 and len(q_values_history) > 0:
-                    q_mat = np.vstack(q_values_history)
-                    fig_q, ax_q = plt.subplots(figsize=(6, 3))
-                    im_q = ax_q.imshow(q_mat.T, aspect="auto", cmap="coolwarm")
-                    ax_q.set_xlabel("episode")
-                    ax_q.set_ylabel("action")
-                    ax_q.set_title("Mean Q-Values Heatmap per Action")
-                    ax_q.set_yticks(range(q_mat.shape[1]))
-
-                    labels = []
-                    for i in range(q_mat.shape[1]):
-                        try:
-                            labels.append(Action(i).name)
-                        except Exception:
-                            labels.append(f"action_{i}")
-                    ax_q.set_yticklabels(labels)
-
-                    fig_q.colorbar(im_q, ax=ax_q, label="Q-Value")
-                    fig_q.tight_layout()
-                    logger.add_figure(
-                        "charts/q_values_heatmap", fig_q, global_step=episode
-                    )
-                    plt.close(fig_q)
-            except Exception:
-                pass
+        heatmap_tracker.update(
+            action_history=action_history,
+            picked_values=ep_metrics.picked_values,
+            episode_visitation=episode_visitation,
+            episode_collisions=episode_collisions,
+            spatial_actions=episode_spatial_actions,
+            n_actions=n_actions,
+        )
+        heatmap_tracker.log_heatmaps(
+            logger=logger, episode=episode, n_actions=n_actions
+        )
 
     env.close()
 
