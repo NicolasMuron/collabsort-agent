@@ -9,7 +9,7 @@ import numpy as np
 
 @dataclass
 class Config:
-    """Perception configuration"""
+    """Perception configuration."""
 
     # Number of perceived columns in an observation
     n_perceived_cols: int = 3
