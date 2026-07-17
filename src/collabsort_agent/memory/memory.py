@@ -32,7 +32,7 @@ class Config:
     target_max_age: int = 20
 
     # Size of the frozen GRU hidden state (for "gru" and "gru+occupancy")
-    gru_hidden_size: int = 8
+    gru_hidden_size: int = 32
 
 
 class Memory:
