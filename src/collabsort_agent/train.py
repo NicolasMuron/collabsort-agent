@@ -37,13 +37,11 @@ from collabsort_agent.learning.noisy_dqn import NoisyDQN
 from collabsort_agent.learning.n_step_learning import NStepLearning
 from collabsort_agent.learning.q_learning import Qlearning
 
-from collabsort_agent.memory import (
-    GRUMemory,
-    Memory,
-    StackMemory,
-    StackTargetMemory,
-    TargetMemory,
-)
+from collabsort_agent.memory.memory import Memory
+from collabsort_agent.memory.gru import GRUMemory
+from collabsort_agent.memory.stack import StackMemory
+from collabsort_agent.memory.stack_target import StackTargetMemory
+from collabsort_agent.memory.target import TargetMemory
 from collabsort_agent.metacognition import MetaController
 from collabsort_agent.perception import Perceiver
 

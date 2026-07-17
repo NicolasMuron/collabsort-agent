@@ -1,7 +1,8 @@
 import numpy as np
 import torch
 
-from collabsort_agent.memory import Config, GRUMemory
+from collabsort_agent.memory.memory import Config
+from collabsort_agent.memory.gru import GRUMemory
 
 
 def test_gru_memory_extends_state_with_hidden_features():
