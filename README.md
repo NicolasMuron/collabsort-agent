@@ -22,6 +22,12 @@ uv run python src/collabsort_agent/train.py --help
 
 # Train the agent, using a configuration specified by {options}
 uv run python src/collabsort_agent/train.py {options}
+
+# Visualize training results through TensorBoard at http://localhost:6006
+uv run tensorboard --logdir runs/
+
+# Launch a demo of a trained agent identified by {train_dir}
+uv run python src/collabsort_agent/demo.py --train_dir runs/{train_dir}
 ```
 
 ## Development notes

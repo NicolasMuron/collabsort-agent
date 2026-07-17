@@ -1,6 +1,6 @@
 [project]
 name = "collabsort-agent"
-version = "0.1.0"
+version = "0.1.1"
 description = "An agent for a collaborative sorting task"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -9,12 +9,9 @@ authors = [
     { name = "Baptiste Pesquet", email = "bpesquet@gmail.com" }
 ]
 requires-python = ">=3.12"
-# Downgrading setuptools because TensorBoard 2.20 still relies on pkg_resources, which was removed from Python 3.12+:
-# https://github.com/tensorflow/tensorboard/issues/7003
 dependencies = [
     "gym-collabsort",
-    "setuptools<=81",
-    "tensorboard>=2.20.0",
+    "tensorboard>=2.21.0",
     "torch>=2.10.0",
     "tqdm>=4.67.3",
     "tyro>=1.0.6",
