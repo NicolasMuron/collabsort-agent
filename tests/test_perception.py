@@ -48,6 +48,7 @@ def test_perceiver_state_size() -> None:
 
             assert sensory_state.ndim == 1
 
+            # Calculate expected length of sensory state
             total_cols = 0
             for row in perceiver.treadmill_rows:
                 if cone_mode:
@@ -65,7 +66,7 @@ def test_perceiver_state_size() -> None:
 
 
 def test_perceiver_state_content() -> None:
-    # On teste le contenu général (ici avec le mode par défaut)
+    # Test the content of the sensory state
     perceiver, env_config = make_perceiver()
     obs = sample_obs(env_config=env_config)
 

@@ -27,6 +27,13 @@ class Agent:
         # Newest action chosen by the agent
         self.current_action: Action | None = None
 
+    def reset(self) -> None:
+        """Reset agent state at the beginning of a new episode"""
+
+        self.memory.reset()
+        self.current_extended_state = None
+        self.current_action = None
+
     def act(
         self,
         obs: dict,

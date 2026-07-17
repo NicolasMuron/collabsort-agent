@@ -13,7 +13,7 @@ class TestNStepLearning(TestDQN):  # Inherit from TestDQN to test DQN compliance
         batch_size: int = 4,
         replay_buffer_size: int = 100,
         target_sync_freq: int = 500,
-        n_step: int = 1,  # Ajout de l'argument spécifique avec sa valeur par défaut
+        n_step: int = 1,
     ) -> NStepLearning:
         """Factory method override to inject NStepLearning instead of standard DQN."""
         config = LearningConfig(

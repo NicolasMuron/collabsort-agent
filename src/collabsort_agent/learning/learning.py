@@ -24,7 +24,9 @@ class Config:
         "dd_dqn",
         "per",
         "n_step",
-    ] = "ql"
+        "noisy",
+        "rainbow",
+    ] = "dqn"
 
     # Discount factor for Temporal-Difference algorithms
     gamma: float = 0.99
@@ -49,6 +51,11 @@ class Config:
 
     # Number of steps for n-step returns (1 = standard DQN)
     n_step: int = 3
+
+    # C51 distributional parameters
+    n_atoms: int = 51
+    v_min: float = -10.0
+    v_max: float = 10.0
 
     # Interval in learning steps to copy online weights to target network.
     target_network_sync_freq: int = 500

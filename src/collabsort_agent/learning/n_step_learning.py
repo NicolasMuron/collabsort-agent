@@ -3,7 +3,6 @@ N-step learning algorithm
 """
 
 import random
-import numpy as np
 import torch
 
 from collabsort_agent.learning import Config as LearningConfig
@@ -65,22 +64,10 @@ class NStepLearning(DQN):
 
         # Manual sampling from the deque to retrieve our 6-element tuples
         batch = random.sample(self.replay_buffer.buffer, self.config.batch_size)
-        states, actions, rewards, next_states, dones, actual_ns = zip(
-            *batch, strict=True
+        unzipped = tuple(zip(*batch, strict=True))
+        states, actions, rewards, next_states, dones, actual_ns = self._prepare_tensors(
+            unzipped
         )
-
-        states = torch.from_numpy(np.array(states, dtype=np.float32)).to(self.device)
-        actions = torch.tensor(actions, dtype=torch.long, device=self.device).unsqueeze(
-            1
-        )
-        rewards = torch.tensor(rewards, dtype=torch.float32, device=self.device)
-        next_states = torch.from_numpy(np.array(next_states, dtype=np.float32)).to(
-            self.device
-        )
-        dones = torch.tensor(dones, dtype=torch.float32, device=self.device)
-        actual_ns = torch.tensor(actual_ns, dtype=torch.float32, device=self.device)
-
-        actions = torch.clamp(actions, 0, self.n_actions - 1)
 
         q_values = self.q_network(states).gather(1, actions).squeeze(1)
         self.mean_q_values.append(torch.mean(q_values).item())

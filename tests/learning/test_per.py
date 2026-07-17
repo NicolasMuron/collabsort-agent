@@ -152,8 +152,6 @@ class TestPER(TestDQN):
 
         agent.tree.add(priority=5.0, data=("state1", 0, 0.0, "next_state1", False))
 
-        # Correction : Cast ou assignation d'un objet Any pour simuler une donnée corrompue
-        # sans déclencher une erreur statique immédiate du typeur
         invalid_data: Any = 0
         agent.tree.data[0] = invalid_data
 

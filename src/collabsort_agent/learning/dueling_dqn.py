@@ -11,22 +11,37 @@ from collabsort_agent.learning.dqn import DQN
 class Dueling_Network(nn.Module):
     """Dueling DQN architecture."""
 
-    def __init__(self, state_size: int, action_size: int) -> None:
+    def __init__(
+        self,
+        state_size: int,
+        action_size: int,
+        linear_layer: type[nn.Module] = nn.Linear,
+        hidden_sizes: tuple[int, int] = (100, 100),
+    ) -> None:
         super(Dueling_Network, self).__init__()
         self.state_size = state_size
         self.action_size = action_size
 
+        first_hidden, second_hidden = hidden_sizes
+
         # Common feature layer
         self.feature_layer = nn.Sequential(
-            nn.Linear(state_size, 100), nn.ReLU(), nn.Linear(100, 100), nn.ReLU()
+            linear_layer(state_size, first_hidden),
+            nn.ReLU(),
+            linear_layer(first_hidden, second_hidden),
+            nn.ReLU(),
         )
         # Value stream
         self.value_stream = nn.Sequential(
-            nn.Linear(100, 50), nn.ReLU(), nn.Linear(50, 1)
+            linear_layer(second_hidden, 50),
+            nn.ReLU(),
+            linear_layer(50, 1),
         )
         # Advantage stream
         self.advantage_stream = nn.Sequential(
-            nn.Linear(100, 50), nn.ReLU(), nn.Linear(50, action_size)
+            linear_layer(second_hidden, 50),
+            nn.ReLU(),
+            linear_layer(50, action_size),
         )
 
     def forward(self, state: torch.Tensor) -> torch.Tensor:

@@ -22,11 +22,25 @@ class Config:
     """Memory configuration"""
 
     # Memory type to use
-    type: Literal["none"] = "none"
+    type: Literal["none", "target", "stack", "stack+target", "gru"] = "gru"
+
+    # Number of past frames to stack (for "stack" and "stack+target")
+    stack_size: int = 10
+
+    # Number of steps before a target memory entry is considered stale
+    # (for "target" and "stack+target")
+    target_max_age: int = 20
+
+    # Size of the frozen GRU hidden state (for "gru" and "gru+occupancy")
+    gru_hidden_size: int = 32
 
 
 class Memory:
-    """Base class for memory types"""
+    """Base class for memory types (no-op: extended state = sensory state)"""
+
+    def reset(self) -> None:
+        """Reset memory state at the beginning of a new episode"""
+        pass
 
     def get_extended_state(self, sensory_state: np.ndarray) -> np.ndarray:
         """Return extended state including sensory and memory states"""
@@ -35,7 +49,7 @@ class Memory:
         return sensory_state
 
     def get_actions(self) -> list[MemoryAction]:
-        """Return the number of memory actions"""
+        """Return the list of memory-specific actions"""
 
         # No memory actions
         return []

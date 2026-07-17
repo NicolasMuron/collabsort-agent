@@ -2,7 +2,7 @@
 Package definition file.
 """
 
-# Avoir repeating ".memory" in imports
-from collabsort_agent.memory.memory import Config, Memory
+# Avoid repeating ".memory" in imports
+from collabsort_agent.memory.memory import Config, Memory, MemoryAction
 
-__all__ = ["Memory", "Config"]
+__all__ = ["Memory", "Config", "MemoryAction"]

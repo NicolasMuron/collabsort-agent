@@ -17,7 +17,7 @@ class Config:
     """Decision configuration"""
 
     # Deision algorithm to use
-    algorithm: Literal["eps", "ard"] = "eps"
+    algorithm: Literal["eps", "ard", "gre"] = "eps"
 
     # ---------- Exploration decay ----------
 
@@ -32,6 +32,9 @@ class Config:
 
     # Percentage of training time during which exploration probability is decayed
     decay_span: float = 0.5
+
+    # If enabled, reset the exploration decay at the start of each curriculum phase.
+    reset_exploration_per_phase: bool = False
 
     # ---------- Advantage Racing Diffusion ----------
 
@@ -86,6 +89,10 @@ class Deliberator(ABC):
         training_step: int,
     ) -> int:
         """Choose the action to perform"""
+
+    def reset_for_phase(self, phase_steps: int) -> None:
+        """Reset any phase-dependent exploration state at the start of a new phase."""
+        return None
 
     @abstractmethod
     def log_episode(self, logger: SummaryWriter, episode: int) -> None:
