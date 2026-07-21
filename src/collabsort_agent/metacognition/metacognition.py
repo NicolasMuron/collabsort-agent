@@ -21,8 +21,13 @@ class Config:
     # Step size for decision threshold adjustment
     theta_rate: float = 0.05
 
-    # Desired confidence level [0..1]
-    confidence_target: float = 0.4
+    # Desired confidence level [0..1].
+    # The meaningful range/scale of this target depends on DecisionConfig.confidence_method:
+    # - "bayesian": confidence is a calibrated posterior probability,
+    #   so 0.5 = chance level and e.g. 0.75 is a reasonable target.
+    # - "gap": confidence is an uncalibrated geometric measure whose scale
+    #   depends on noise_std/theta; a lower target (e.g. 0.4) is appropriate.
+    confidence_target: float = 0.75
 
     # Exponential moving average decay for smoothing confidence
     ema_decay: float = 0.1

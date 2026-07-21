@@ -38,6 +38,11 @@ class Config:
     # Rule for ending evidence accumulation and choosing an action
     decision_rule: Literal["win-all"] = "win-all"
 
+    # Method used to compute decision confidence:
+    # - "gap": normalized distance between winner/runner-up slowest accumulators.
+    # - "bayesian": posterior probability that the winning action's drift truly exceeds the runner-up's.
+    confidence_method: Literal["gap", "bayesian"] = "bayesian"
+
     # Initial value for decision threshold (adjusted via metacognition)
     theta_start: float = 1.0
 
