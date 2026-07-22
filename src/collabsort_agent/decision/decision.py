@@ -17,7 +17,7 @@ class Config:
     """Decision configuration"""
 
     # Decision algorithm to use
-    algorithm: Literal["eps", "ard", "gre", "pol"] = "eps"
+    algorithm: Literal["eps", "ard", "gre", "pol"] = "pol"
 
     # ---------- Exploration decay ----------
 
