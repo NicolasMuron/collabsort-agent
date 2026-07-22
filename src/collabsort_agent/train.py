@@ -40,7 +40,6 @@ from collabsort_agent.learning.n_step_learning import NStepLearning
 from collabsort_agent.learning.q_learning import Qlearning
 
 from collabsort_agent.memory.memory import Memory
-from collabsort_agent.memory.gru import GRUMemory
 from collabsort_agent.memory.stack import StackMemory
 from collabsort_agent.memory.stack_target import StackTargetMemory
 from collabsort_agent.memory.target import TargetMemory
@@ -258,8 +257,6 @@ def create_agent(config: Config, sample_obs: dict, rng: np.random.Generator) -> 
             treadmill_rows=config.env.treadmill_rows,
             n_cols_per_row=n_cols_per_row,
         )
-    elif mem_type == "gru":
-        memory = GRUMemory(config=config.memory, input_size=len(sample_sensory_state))
     else:
         raise ValueError(f"Unrecognized memory type: {mem_type}")
 

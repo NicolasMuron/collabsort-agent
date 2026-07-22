@@ -27,7 +27,7 @@ class Config:
         "noisy",
         "ppo",
         "rainbow",
-    ] = "n_step"
+    ] = "dqn"
 
     # Discount factor for Temporal-Difference algorithms
     gamma: float = 0.99

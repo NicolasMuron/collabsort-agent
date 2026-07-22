@@ -22,17 +22,14 @@ class Config:
     """Memory configuration"""
 
     # Memory type to use
-    type: Literal["none", "target", "stack", "stack+target", "gru"] = "stack"
+    type: Literal["none", "target", "stack", "stack+target"] = "stack"
 
     # Number of past frames to stack (for "stack" and "stack+target")
-    stack_size: int = 4
+    stack_size: int = 3
 
     # Number of steps before a target memory entry is considered stale
     # (for "target" and "stack+target")
-    target_max_age: int = 10
-
-    # Size of the frozen GRU hidden state (for "gru" and "gru+occupancy")
-    gru_hidden_size: int = 32
+    target_max_age: int = 5
 
 
 class Memory:
