@@ -27,7 +27,7 @@ class Config:
         "noisy",
         "ppo",
         "rainbow",
-    ] = "n_step"
+    ] = "ppo"
 
     # Discount factor for Temporal-Difference algorithms
     gamma: float = 0.99
@@ -77,7 +77,7 @@ class Config:
     k_epochs: int = 4
 
     # Weight of the entropy bonus (encourages exploration)
-    entropy_coef: float = 0.5
+    entropy_coef: float = 0.2
 
     # Weight of the critic loss in the combined PPO loss
     value_coef: float = 0.5
