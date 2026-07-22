@@ -82,7 +82,7 @@ class Config:
     k_epochs: int = 4
 
     # Weight of the entropy bonus (encourages exploration)
-    entropy_coef: float = 0.01
+    entropy_coef: float = 0.1
 
     # Weight of the critic loss in the combined PPO loss
     value_coef: float = 0.5
