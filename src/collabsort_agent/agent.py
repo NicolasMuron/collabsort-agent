@@ -27,12 +27,16 @@ class Agent:
         # Newest action chosen by the agent
         self.current_action: Action | None = None
 
+        # Cached next state to prevent double-updating memory modules
+        self.next_extended_state: np.ndarray | None = None
+
     def reset(self) -> None:
         """Reset agent state at the beginning of a new episode"""
 
         self.memory.reset()
         self.current_extended_state = None
         self.current_action = None
+        self.next_extended_state = None
 
     def act(
         self,
@@ -41,8 +45,12 @@ class Agent:
     ) -> Action:
         """Select an action"""
 
-        sensory_state = self.perceiver.get_sensory_state(obs=obs)
-        extended_state = self.memory.get_extended_state(sensory_state=sensory_state)
+        if self.next_extended_state is not None:
+            extended_state = self.next_extended_state
+            self.next_extended_state = None
+        else:
+            sensory_state = self.perceiver.get_sensory_state(obs=obs)
+            extended_state = self.memory.get_extended_state(sensory_state=sensory_state)
 
         self.current_extended_state = extended_state
 
@@ -65,6 +73,8 @@ class Agent:
         next_extended_state = self.memory.get_extended_state(
             sensory_state=next_sensory_state
         )
+
+        self.next_extended_state = next_extended_state
 
         # Update action values
         self.deliberator.estimator.update_action_values(
