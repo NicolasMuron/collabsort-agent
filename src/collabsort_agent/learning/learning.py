@@ -129,16 +129,18 @@ class ActionValueEstimator(ABC):
         """Update action values after an action was taken"""
 
     def log_episode(self, logger: SummaryWriter, episode: int) -> None:
-        logger.add_scalar(
-            tag="learning/mean_td_error",
-            scalar_value=mean(self.losses),
-            global_step=episode,
-        )
-        logger.add_scalar(
-            tag="learning/mean_q_value",
-            scalar_value=mean(self.mean_q_values),
-            global_step=episode,
-        )
+        if self.losses:
+            logger.add_scalar(
+                tag="learning/mean_td_error",
+                scalar_value=mean(self.losses),
+                global_step=episode,
+            )
+        if self.mean_q_values:
+            logger.add_scalar(
+                tag="learning/mean_q_value",
+                scalar_value=mean(self.mean_q_values),
+                global_step=episode,
+            )
 
         # Reset episode data
         self.losses.clear()
