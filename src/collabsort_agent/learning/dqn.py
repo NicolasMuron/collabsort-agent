@@ -35,7 +35,7 @@ class QNetwork(nn.Module):
         self,
         input_size: int,
         output_size: int,
-        hidden_sizes: tuple = (300, 300),
+        hidden_sizes: tuple = (200, 200),
     ) -> None:
         super().__init__()
 
