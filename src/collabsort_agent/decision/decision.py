@@ -16,8 +16,8 @@ from collabsort_agent.learning import ActionValueEstimator
 class Config:
     """Decision configuration"""
 
-    # Deision algorithm to use
-    algorithm: Literal["eps", "ard", "gre"] = "eps"
+    # Decision algorithm to use
+    algorithm: Literal["eps", "ard", "gre", "pol"] = "eps"
 
     # ---------- Exploration decay ----------
 

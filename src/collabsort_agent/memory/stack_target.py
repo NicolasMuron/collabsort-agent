@@ -13,8 +13,8 @@ from collabsort_agent.memory.target import TargetMemory
 class StackTargetMemory(StackMemory):
     """Combination of :class:`TargetMemory` and :class:`StackMemory`.
 
-    The sensory state is first extended with target-memory features, then the
-    last ``stack_size`` such extended states are concatenated.
+    Only the sensory state is stacked over time. Target memory features are
+    appended ONCE at the end of the stacked representation.
     """
 
     def __init__(
@@ -35,8 +35,13 @@ class StackTargetMemory(StackMemory):
         super().reset()
 
     def get_extended_state(self, sensory_state: np.ndarray) -> np.ndarray:
-        target_state = self._target.get_extended_state(sensory_state)
-        return super().get_extended_state(target_state)
+        stacked_sensory = super().get_extended_state(sensory_state)
+
+        # We retrieve the Target memory features from the TargetMemory instance
+        target_extended = self._target.get_extended_state(sensory_state)
+        target_features = target_extended[len(sensory_state) :]
+
+        return np.concatenate([stacked_sensory, target_features])
 
     def get_actions(self) -> list[MemoryAction]:
         return []

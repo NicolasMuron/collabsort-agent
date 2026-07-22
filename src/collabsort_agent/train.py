@@ -26,12 +26,14 @@ from collabsort_agent.decision.exploration_decay import (
     ExponentialExplorationDecay,
     LinearExplorationDecay,
 )
+from collabsort_agent.decision.policy import Policy
 
 # Learners
 from collabsort_agent.learning.dd_dqn import DoubleDuelingDQN
 from collabsort_agent.learning.double_dqn import DoubleDQN
 from collabsort_agent.learning.dueling_dqn import DuelingDQN
 from collabsort_agent.learning.dqn import DQN
+from collabsort_agent.learning.ppo import PPOEstimator
 from collabsort_agent.learning.per import PER
 from collabsort_agent.learning.noisy_dqn import NoisyDQN
 from collabsort_agent.learning.n_step_learning import NStepLearning
@@ -165,6 +167,8 @@ def _build_estimator(
         )
     elif algo_name == "noisy":
         return NoisyDQN(config=c_learn, n_actions=n_actions, state_size=state_size)
+    elif algo_name == "ppo":
+        return PPOEstimator(config=c_learn, n_actions=n_actions, state_size=state_size)
 
     raise ValueError(f"Unrecognized learning algorithm: {algo_name}")
 
@@ -212,6 +216,9 @@ def _build_deliberator(
 
     if algo_name == "gre":
         return Greedy(config=config.decision, estimator=estimator, rng=rng)
+
+    if algo_name == "pol":
+        return Policy(config=config.decision, estimator=estimator, rng=rng)
 
     raise ValueError(f"Unrecognized decision algorithm: {algo_name}")
 

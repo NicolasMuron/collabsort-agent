@@ -25,8 +25,9 @@ class Config:
         "per",
         "n_step",
         "noisy",
+        "ppo",
         "rainbow",
-    ] = "dqn"
+    ] = "n_step"
 
     # Discount factor for Temporal-Difference algorithms
     gamma: float = 0.99
@@ -62,6 +63,31 @@ class Config:
 
     # Initial Q-Value
     q_start: float = 0
+
+    # ── PPO-specific hyperparameters ─────────────────────────────────────────
+
+    # Actor learning rate (PPO)
+    lr_actor: float = 3e-4
+
+    # Critic learning rate (PPO) — slightly higher to keep value estimates fresh
+    lr_critic: float = 1e-3
+
+    # GAE-lambda: trade-off between bias (λ→0) and variance (λ→1)
+    lam: float = 0.95
+
+    # PPO clip ratio ε
+    eps_clip: float = 0.2
+
+    # Number of gradient update epochs per rollout
+    k_epochs: int = 4
+
+    # Weight of the entropy bonus (encourages exploration)
+    entropy_coef: float = 0.01
+
+    # Weight of the critic loss in the combined PPO loss
+    value_coef: float = 0.5
+
+    # ─────────────────────────────────────────────────────────────────────────
 
     # Number of training episodes
     n_episodes: int = 300
