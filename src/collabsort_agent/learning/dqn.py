@@ -175,21 +175,21 @@ class DQN(ActionValueEstimator):
         states, actions, rewards, next_states, dones = unzipped[:5]
 
         # Obtain PyTorch tensors from NumPy arrays or lists.
-        states = torch.as_tensor(states, dtype=torch.float32).to(
+        states = torch.as_tensor(np.asarray(states), dtype=torch.float32).to(
             self.device, non_blocking=True
         )
         actions = (
-            torch.as_tensor(actions, dtype=torch.long)
+            torch.as_tensor(np.asarray(actions), dtype=torch.long)
             .to(self.device, non_blocking=True)
             .unsqueeze(1)
         )
-        rewards = torch.as_tensor(rewards, dtype=torch.float32).to(
+        rewards = torch.as_tensor(np.asarray(rewards), dtype=torch.float32).to(
             self.device, non_blocking=True
         )
-        next_states = torch.as_tensor(next_states, dtype=torch.float32).to(
+        next_states = torch.as_tensor(np.asarray(next_states), dtype=torch.float32).to(
             self.device, non_blocking=True
         )
-        dones = torch.as_tensor(dones, dtype=torch.float32).to(
+        dones = torch.as_tensor(np.asarray(dones), dtype=torch.float32).to(
             self.device, non_blocking=True
         )
 
@@ -198,9 +198,9 @@ class DQN(ActionValueEstimator):
 
         # If the batch contains the `actual_n` from the n-step learning.
         if len(unzipped) == 6:
-            actual_ns = torch.as_tensor(unzipped[5], dtype=torch.float32).to(
-                self.device, non_blocking=True
-            )
+            actual_ns = torch.as_tensor(
+                np.asarray(unzipped[5]), dtype=torch.float32
+            ).to(self.device, non_blocking=True)
             return states, actions, rewards, next_states, dones, actual_ns
 
         return states, actions, rewards, next_states, dones
