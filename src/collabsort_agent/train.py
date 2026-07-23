@@ -21,11 +21,14 @@ from collabsort_agent.decision.exploration_decay import (
     ExponentialExplorationDecay,
     LinearExplorationDecay,
 )
-from collabsort_agent.learning.dueling_dqn import DuelingDQN
 from collabsort_agent.learning.dqn import DQN
+from collabsort_agent.learning.dueling_dqn import DuelingDQN
 from collabsort_agent.learning.q_learning import Qlearning
 from collabsort_agent.memory import Memory
-from collabsort_agent.metacognition import MetaController
+from collabsort_agent.metacognition import Hyperparameters
+from collabsort_agent.metacognition.confidence import BayesianConfidence, GapConfidence
+from collabsort_agent.metacognition.controller import MetaController
+from collabsort_agent.metacognition.monitoring import MetaMonitoring
 from collabsort_agent.perception import Perceiver
 
 
@@ -44,23 +47,22 @@ def create_agent(config: Config, sample_obs: dict, rng: np.random.Generator) -> 
     else:
         raise Exception(f"Unrecognized memory type: {config.memory.type}")
 
+    # Compute decision hyperparameters
     sample_extended_state = memory.get_extended_state(
         sensory_state=sample_sensory_state
     )
-
-    # Initialize metacognition
-    meta_ctrl = MetaController(
-        config=config.meta, learning_cfg=config.learning, decision_cfg=config.decision
-    )
-
-    # Compute decision hyperparameters
     extended_state_size = len(sample_extended_state)
     n_actions = len(Action) + len(memory.get_actions())
+
+    # Initialize metacognition hyperparameters
+    hyperparameters = Hyperparameters(
+        decision_cfg=config.decision, learning_cfg=config.learning
+    )
 
     # Initialize learning
     if config.learning.algorithm == "ql":
         estimator = Qlearning(
-            config=config.learning, n_actions=n_actions, meta_ctrl=meta_ctrl
+            config=config.learning, n_actions=n_actions, hyperparameters=hyperparameters
         )
     elif config.learning.algorithm == "dqn":
         estimator = DQN(
@@ -103,10 +105,34 @@ def create_agent(config: Config, sample_obs: dict, rng: np.random.Generator) -> 
         if config.decision.decision_rule == "win-all":
             decision_rule = WinAllRule(rng=rng)
 
+        if config.meta.confidence_method == "gap":
+            confidence_method = GapConfidence(
+                decision_cfg=config.decision, hyperparameters=hyperparameters
+            )
+        elif config.meta.confidence_method == "bayesian":
+            confidence_method = BayesianConfidence(
+                decision_cfg=config.decision, hyperparameters=hyperparameters
+            )
+        else:
+            raise Exception(
+                f"Unrecognized confidence method: {config.meta.confidence_method}"
+            )
+
+        # Initialize metacognition
+        meta_monitoring = MetaMonitoring(confidence_method=confidence_method)
+        meta_ctrl = MetaController(
+            config=config.meta,
+            decision_cfg=config.decision,
+            learning_cfg=config.learning,
+            hyperparameters=hyperparameters,
+        )
+
         deliberator = ARD(
             config=config.decision,
             estimator=estimator,
             decision_rule=decision_rule,
+            hyperparameters=hyperparameters,
+            meta_monitoring=meta_monitoring,
             meta_ctrl=meta_ctrl,
             rng=rng,
         )

@@ -9,20 +9,20 @@ from torch.utils.tensorboard import SummaryWriter
 
 from collabsort_agent.learning import ActionValueEstimator
 from collabsort_agent.learning import Config as LearningConfig
-from collabsort_agent.metacognition import MetaController
+from collabsort_agent.metacognition import Hyperparameters
 
 
 class Qlearning(ActionValueEstimator):
     """Q-Learning algorithm."""
 
     def __init__(
-        self, config: LearningConfig, n_actions: int, meta_ctrl: MetaController
+        self, config: LearningConfig, n_actions: int, hyperparameters: Hyperparameters
     ) -> None:
         super().__init__(config=config, n_actions=n_actions)
 
         self.config = config
         self.n_actions = n_actions
-        self.meta_ctrl = meta_ctrl
+        self.hyperparameters = hyperparameters
 
         self._table: dict[tuple, np.ndarray] = defaultdict(
             lambda: np.full(n_actions, config.q_start, dtype=float)
@@ -55,7 +55,7 @@ class Qlearning(ActionValueEstimator):
         self.losses.append(abs(td_error))
 
         key = self._make_key(state)
-        self._table[key][action] += self.meta_ctrl.alpha * td_error
+        self._table[key][action] += self.hyperparameters.alpha * td_error
 
     def _make_key(self, state: np.ndarray) -> tuple:
         """Convert a state vector to a hashable dictionary key."""
@@ -67,7 +67,7 @@ class Qlearning(ActionValueEstimator):
 
         logger.add_scalar(
             tag="learning/learning_rate",
-            scalar_value=self.meta_ctrl.alpha,
+            scalar_value=self.hyperparameters.alpha,
             global_step=episode,
         )
 
