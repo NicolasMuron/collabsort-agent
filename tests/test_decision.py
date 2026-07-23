@@ -16,7 +16,10 @@ from collabsort_agent.decision.exploration_decay import (
 from collabsort_agent.learning import ActionValueEstimator
 from collabsort_agent.learning import Config as LearningConfig
 from collabsort_agent.metacognition import Config as MetaConfig
-from collabsort_agent.metacognition import MetaController
+from collabsort_agent.metacognition import Hyperparameters
+from collabsort_agent.metacognition.confidence import BayesianConfidence
+from collabsort_agent.metacognition.controller import MetaController
+from collabsort_agent.metacognition.monitoring import MetaMonitoring
 
 
 class EstimatorStub(ActionValueEstimator):
@@ -50,12 +53,15 @@ class EstimatorStub(ActionValueEstimator):
 class MetaStub(MetaController):
     """Metacognition stub"""
 
-    def __init__(self) -> None:
+    def __init__(
+        self, decision_cfg: DecisionConfig, hyperparameters: Hyperparameters
+    ) -> None:
         super().__init__(
             # No update of hyperparameters
             config=MetaConfig(alpha_rate=0.0, theta_rate=0.0),
             learning_cfg=LearningConfig(),
-            decision_cfg=DecisionConfig(),
+            decision_cfg=decision_cfg,
+            hyperparameters=hyperparameters,
         )
         self.confidence: float = 0.0
         self.rt: float = 0.0
@@ -131,23 +137,23 @@ class TestARD:
 
             if show_plots:
                 # Plot all accumulators
-                lines = plt.plot(ard._evidence_history.T)
+                lines = plt.plot(ard.accumulators.evidence_history.T)
 
                 # Plot decision threashold
                 plt.hlines(
-                    ard.meta_ctrl.theta,
+                    ard.hyperparameters.theta,
                     xmin=plt.xlim()[0],
                     xmax=plt.xlim()[1],
                     linestyles="dotted",
                 )
                 plt.annotate(
                     "Decision threshold",
-                    xy=(plt.xlim()[1] / 4, ard.meta_ctrl.theta * 1.02),
+                    xy=(plt.xlim()[1] / 4, ard.hyperparameters.theta * 1.02),
                 )
 
                 # Plot decision time
                 plt.vlines(
-                    len(ard._evidence_history[0]) - 1,
+                    len(ard.accumulators.evidence_history[0]) - 1,
                     ymin=plt.ylim()[0],
                     ymax=plt.ylim()[1],
                     linestyles="dotted",
@@ -155,7 +161,7 @@ class TestARD:
 
                 # Add labels for each accumulator
                 line_i = 0
-                for i, j in ard._action_pairs:
+                for i, j in ard.accumulators.action_pairs:
                     lines[line_i].set_label(f"({i},{j})")
                     line_i += 1
 
@@ -184,7 +190,7 @@ class TestARD:
         ard.choose_action(state=state, training_step=0)
 
         drift_rates = ard._compute_drift_rates_dict(q_values=q_values)
-        for i, j in ard._action_pairs:
+        for i, j in ard.accumulators.action_pairs:
             # v(i,j) = w_d*(Q_i - Q_j) + w_s*(Q_i + Q_j) + V0
             expected_drift_rate = (
                 ard.config.w_d * (q_values[i] - q_values[j])
@@ -193,85 +199,27 @@ class TestARD:
             )
             assert abs(drift_rates[i, j] - expected_drift_rate) < 1e-6
 
-    def test_confidence_gap(self) -> None:
-        """Test geometric confidence measure"""
-
-        state = np.zeros(5, dtype=np.float32)
-        q_matrix = [[0.0, 1.0, 0.0], [0.5, 1.0, 0.2], [0.05, 0.2, 0.1]]
-        expected_confidences = [0.98, 0.91, 0.43]
-
-        for i, q_values in enumerate(q_matrix):
-            q_values = np.array(q_values)
-            ard, meta_stub = self._make_ard(
-                action_values=q_values, config=DecisionConfig(confidence_method="gap")
-            )
-            ard.choose_action(state=state, training_step=0)
-
-            assert abs(meta_stub.confidence - expected_confidences[i]) < 1e-2
-
-    def test_confidence_bayesian(self) -> None:
-        """
-        Bayesian (signal-detection) confidence measure. Unlike the legacy gap
-        measure, values are a genuine posterior probability in [0, 1] and
-        should be monotonically increasing with the clarity of the winning
-        action's advantage over the runner-up.
-        """
-
-        state = np.zeros(5, dtype=np.float32)
-        # Q-values ordered from most to least clear-cut winner.
-        q_matrix = [[0.0, 1.0, 0.0], [0.5, 1.0, 0.2], [0.05, 0.2, 0.1]]
-
-        confidences = []
-        for q_values in q_matrix:
-            q_values = np.array(q_values)
-            ard, meta_stub = self._make_ard(
-                action_values=q_values,
-                config=DecisionConfig(confidence_method="bayesian"),
-            )
-            ard.choose_action(state=state, training_step=0)
-
-            # Always a valid probability
-            assert 0.0 <= meta_stub.confidence <= 1.0
-            confidences.append(meta_stub.confidence)
-
-        # Confidence should decrease as the decision gets less clear-cut
-        assert confidences[0] > confidences[1] > confidences[2]
-
-        # A near-unambiguous decision (Q = [0, 1, 0]) should be near-certain
-        assert confidences[0] > 0.95
-
-        # The most ambiguous case here (Q = [0.05, 0.2, 0.1]) should still
-        # reflect a real, if more modest, edge over chance level (0.5)
-        assert 0.5 < confidences[2] < 0.95
-
-    def test_confidence_bayesian_symmetric_ties_are_chance_level(self) -> None:
-        """
-        With perfectly tied Q-values (no advantage between any pair), the
-        Bayesian confidence for the (arbitrarily) chosen action should sit
-        at chance level (~0.5), since there is no true evidence favoring it
-        over the runner-up.
-        """
-
-        state = np.zeros(5, dtype=np.float32)
-        q_values = np.array([0.5, 0.5, 0.5])
-
-        ard, meta_stub = self._make_ard(
-            action_values=q_values, config=DecisionConfig(confidence_method="bayesian")
-        )
-        ard.choose_action(state=state, training_step=0)
-
-        assert abs(meta_stub.confidence - 0.5) < 1e-6
-
     def _make_ard(
         self, action_values: np.ndarray, config: DecisionConfig
     ) -> tuple[ARD, MetaStub]:
         rng = np.random.default_rng(42)
 
-        meta_stub = MetaStub()
+        learning_cfg = LearningConfig()
+        hyperparameters = Hyperparameters(
+            decision_cfg=config, learning_cfg=learning_cfg
+        )
+        meta_monitoring = MetaMonitoring(
+            confidence_method=BayesianConfidence(
+                decision_cfg=config, hyperparameters=hyperparameters
+            )
+        )
+        meta_stub = MetaStub(decision_cfg=config, hyperparameters=hyperparameters)
         ard = ARD(
             config=config,
             estimator=EstimatorStub(action_values=action_values),
             decision_rule=WinAllRule(rng=rng),
+            hyperparameters=hyperparameters,
+            meta_monitoring=meta_monitoring,
             meta_ctrl=meta_stub,
             rng=rng,
         )

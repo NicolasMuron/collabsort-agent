@@ -7,8 +7,7 @@ import numpy as np
 from collabsort_agent.decision import Config as DecisionConfig
 from collabsort_agent.learning import Config as LearningConfig
 from collabsort_agent.learning.q_learning import Qlearning
-from collabsort_agent.metacognition import Config as MetaConfig
-from collabsort_agent.metacognition import MetaController
+from collabsort_agent.metacognition import Hyperparameters
 
 
 class TestQLearning:
@@ -56,7 +55,9 @@ class TestQLearning:
         state = np.array([1.0], dtype=np.float32)
         next_state = np.array([999.0], dtype=np.float32)  # shouldn't matter
 
-        ql = Qlearning(config=config, n_actions=2, meta_ctrl=self._make_meta())
+        ql = Qlearning(
+            config=config, n_actions=2, hyperparameters=self._make_hyperparameters()
+        )
 
         ql.update_action_values(
             state=state, action=0, reward=1.0, next_state=next_state, done=True
@@ -68,12 +69,10 @@ class TestQLearning:
         return Qlearning(
             config=LearningConfig(q_start=q_start),
             n_actions=n_actions,
-            meta_ctrl=self._make_meta(),
+            hyperparameters=self._make_hyperparameters(),
         )
 
-    def _make_meta(self) -> MetaController:
-        return MetaController(
-            config=MetaConfig(),
-            learning_cfg=LearningConfig(),
-            decision_cfg=DecisionConfig(),
+    def _make_hyperparameters(self) -> Hyperparameters:
+        return Hyperparameters(
+            decision_cfg=DecisionConfig(), learning_cfg=LearningConfig()
         )
