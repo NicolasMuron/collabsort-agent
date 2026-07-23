@@ -3,6 +3,7 @@ Advantage Racing Diffusion definitions.
 """
 
 import itertools
+import math
 
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
@@ -56,6 +57,11 @@ class ARD(Deliberator):
         # Cumulated evidence for each accumulator during a decision. Shape: (n_accumulators,)
         self._evidence = self._reset_evidence()
 
+        # Drift rates for the accumulators of the current/last decision. Shape: (n_accumulators,)
+        # Stored so that _compute_confidence can access the drift rate of any
+        # specific accumulator (needed for the Bayesian confidence estimate).
+        self._drift_rates = self._reset_evidence()
+
         # History matrix of evidence values at each time step of a decision. Used for plotting/debugging.
         # Each line stores all successive evidence values for one accumulator.
         # Shape: (n_accumulators, n_decision_steps).
@@ -87,6 +93,7 @@ class ARD(Deliberator):
 
         # Compute drift rates for all accumulators
         drift_rates = self._compute_drift_rates(action_values)
+        self._drift_rates = drift_rates
 
         chosen_action = -1
         rt = float(self.config.max_steps)
@@ -152,7 +159,9 @@ class ARD(Deliberator):
 
         # Compute decision confidence and adjust hyperparameters
         confidence = self._compute_confidence(
-            chosen_action=chosen_action, runnerup_action=runnerup_action
+            chosen_action=chosen_action,
+            runnerup_action=runnerup_action,
+            reaction_time=rt,
         )
         self.meta_ctrl.update_hyperparameters(confidence=confidence, reaction_time=rt)
 
@@ -168,13 +177,91 @@ class ARD(Deliberator):
 
         return [np.min(self._evidence[self._adv_accs[action]]) for action in actions]
 
-    def _compute_confidence(self, chosen_action: int, runnerup_action: int) -> float:
-        """Compute confidence as normlized distance between slowest accumulators of chosen and runner-up actions."""
+    def _argmin_accumulator(self, action: int) -> int:
+        """
+        Return the global index (into self._evidence / self._drift_rates) of
+        the "slowest" advantage accumulator for a given action, i.e. the one
+        with the lowest evidence value. This is the accumulator that
+        determines when/whether the action wins the race (win-all rule).
+        """
+
+        accs = self._adv_accs[action]
+        local_argmin = int(np.argmin(self._evidence[accs]))
+        return accs[local_argmin]
+
+    def _compute_confidence(
+        self, chosen_action: int, runnerup_action: int, reaction_time: float
+    ) -> float:
+        """Compute decision confidence, using the method set in config.confidence_method."""
+
+        if self.config.confidence_method == "bayesian":
+            return self._compute_confidence_bayesian(
+                chosen_action=chosen_action,
+                runnerup_action=runnerup_action,
+                reaction_time=reaction_time,
+            )
+        return self._compute_confidence_gap(
+            chosen_action=chosen_action, runnerup_action=runnerup_action
+        )
+
+    def _compute_confidence_gap(
+        self, chosen_action: int, runnerup_action: int
+    ) -> float:
+        """
+        Legacy confidence measure: normalized distance between slowest
+        accumulators of chosen and runner-up actions. Purely geometric,
+        not on a fixed/interpretable scale (depends on noise level and
+        accumulation duration).
+        """
 
         min_evidence = self._compute_min_evidence(
             actions=[chosen_action, runnerup_action]
         )
         return (min_evidence[0] - min_evidence[1]) / (self.meta_ctrl.theta + 1e-6)
+
+    def _compute_confidence_bayesian(
+        self, chosen_action: int, runnerup_action: int, reaction_time: float
+    ) -> float:
+        """
+        Bayesian (signal-detection) confidence: the posterior probability
+        that the chosen action's slowest accumulator truly has a higher
+        drift rate than the runner-up's slowest accumulator, given the
+        accumulation noise model. Inspired by Kepecs2008
+        https://doi.org/10.1038/nature07200
+
+        Each accumulator x_k follows dx_k = v_k*dt + noise, noise ~ N(0, noise_std^2)
+        per simulation step (see choose_action). After `reaction_time` steps:
+            x_k ~ N(v_k * reaction_time * dt, reaction_time * noise_std^2)
+        The difference between the chosen and runner-up slowest accumulators
+        is then approximately Gaussian, and confidence is the posterior
+        probability that this difference has positive mean, i.e. that the
+        winning accumulator's drift genuinely exceeded the runner-up's:
+
+            c = Phi( (v_i - v_j) * t* / (sigma * sqrt(2*t*)) )
+
+        with t* = reaction_time * dt and sigma^2 = noise_std^2 / dt (the
+        per-unit-time noise variance implied by the discretization above).
+        """
+
+        chosen_idx = self._argmin_accumulator(chosen_action)
+        runnerup_idx = self._argmin_accumulator(runnerup_action)
+
+        v_diff = self._drift_rates[chosen_idx] - self._drift_rates[runnerup_idx]
+
+        # Elapsed simulated time and standard deviation of the accumulator
+        # difference, matching the discretization used in choose_action
+        # (noise variance accrues per step, drift accrues per unit of dt).
+        elapsed_time = reaction_time * self.config.dt
+        std_diff = self.config.noise_std * math.sqrt(2.0 * reaction_time)
+
+        z = (v_diff * elapsed_time) / (std_diff + 1e-12)
+        return self._normal_cdf(z)
+
+    @staticmethod
+    def _normal_cdf(z: float) -> float:
+        """Standard normal CDF, computed via the error function (no scipy dependency)."""
+
+        return 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
 
     def _compute_drift_rates(self, q_values: np.ndarray) -> np.ndarray:
         """

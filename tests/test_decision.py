@@ -126,7 +126,7 @@ class TestARD:
 
         for q_values in q_matrix:
             q_values = np.array(q_values)
-            ard, _ = self._make_ard(action_values=q_values)
+            ard, _ = self._make_ard(action_values=q_values, config=DecisionConfig())
             action = ard.choose_action(state=state, training_step=0)
 
             if show_plots:
@@ -180,7 +180,7 @@ class TestARD:
         state = np.zeros(5, dtype=np.float32)
         q_values = np.array([0.5, 1.0, 0.2])
 
-        ard, _ = self._make_ard(action_values=q_values)
+        ard, _ = self._make_ard(action_values=q_values, config=DecisionConfig())
         ard.choose_action(state=state, training_step=0)
 
         drift_rates = ard._compute_drift_rates_dict(q_values=q_values)
@@ -193,24 +193,83 @@ class TestARD:
             )
             assert abs(drift_rates[i, j] - expected_drift_rate) < 1e-6
 
-    def test_confidence(self) -> None:
+    def test_confidence_gap(self) -> None:
+        """Test geometric confidence measure"""
+
         state = np.zeros(5, dtype=np.float32)
         q_matrix = [[0.0, 1.0, 0.0], [0.5, 1.0, 0.2], [0.05, 0.2, 0.1]]
         expected_confidences = [0.98, 0.91, 0.43]
 
         for i, q_values in enumerate(q_matrix):
             q_values = np.array(q_values)
-            ard, meta_stub = self._make_ard(action_values=q_values)
+            ard, meta_stub = self._make_ard(
+                action_values=q_values, config=DecisionConfig(confidence_method="gap")
+            )
             ard.choose_action(state=state, training_step=0)
 
-            assert abs(meta_stub.confidence - expected_confidences[i] < 1e-2)
+            assert abs(meta_stub.confidence - expected_confidences[i]) < 1e-2
 
-    def _make_ard(self, action_values: np.ndarray) -> tuple[ARD, MetaStub]:
+    def test_confidence_bayesian(self) -> None:
+        """
+        Bayesian (signal-detection) confidence measure. Unlike the legacy gap
+        measure, values are a genuine posterior probability in [0, 1] and
+        should be monotonically increasing with the clarity of the winning
+        action's advantage over the runner-up.
+        """
+
+        state = np.zeros(5, dtype=np.float32)
+        # Q-values ordered from most to least clear-cut winner.
+        q_matrix = [[0.0, 1.0, 0.0], [0.5, 1.0, 0.2], [0.05, 0.2, 0.1]]
+
+        confidences = []
+        for q_values in q_matrix:
+            q_values = np.array(q_values)
+            ard, meta_stub = self._make_ard(
+                action_values=q_values,
+                config=DecisionConfig(confidence_method="bayesian"),
+            )
+            ard.choose_action(state=state, training_step=0)
+
+            # Always a valid probability
+            assert 0.0 <= meta_stub.confidence <= 1.0
+            confidences.append(meta_stub.confidence)
+
+        # Confidence should decrease as the decision gets less clear-cut
+        assert confidences[0] > confidences[1] > confidences[2]
+
+        # A near-unambiguous decision (Q = [0, 1, 0]) should be near-certain
+        assert confidences[0] > 0.95
+
+        # The most ambiguous case here (Q = [0.05, 0.2, 0.1]) should still
+        # reflect a real, if more modest, edge over chance level (0.5)
+        assert 0.5 < confidences[2] < 0.95
+
+    def test_confidence_bayesian_symmetric_ties_are_chance_level(self) -> None:
+        """
+        With perfectly tied Q-values (no advantage between any pair), the
+        Bayesian confidence for the (arbitrarily) chosen action should sit
+        at chance level (~0.5), since there is no true evidence favoring it
+        over the runner-up.
+        """
+
+        state = np.zeros(5, dtype=np.float32)
+        q_values = np.array([0.5, 0.5, 0.5])
+
+        ard, meta_stub = self._make_ard(
+            action_values=q_values, config=DecisionConfig(confidence_method="bayesian")
+        )
+        ard.choose_action(state=state, training_step=0)
+
+        assert abs(meta_stub.confidence - 0.5) < 1e-6
+
+    def _make_ard(
+        self, action_values: np.ndarray, config: DecisionConfig
+    ) -> tuple[ARD, MetaStub]:
         rng = np.random.default_rng(42)
 
         meta_stub = MetaStub()
         ard = ARD(
-            config=DecisionConfig(),
+            config=config,
             estimator=EstimatorStub(action_values=action_values),
             decision_rule=WinAllRule(rng=rng),
             meta_ctrl=meta_stub,
