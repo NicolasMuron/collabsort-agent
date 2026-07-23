@@ -25,7 +25,7 @@ class Config:
     type: Literal["none", "target", "stack", "stack+target"] = "stack"
 
     # Number of past frames to stack (for "stack" and "stack+target")
-    stack_size: int = 5
+    stack_size: int = 6
 
     # Number of steps before a target memory entry is considered stale
     # (for "target" and "stack+target")
