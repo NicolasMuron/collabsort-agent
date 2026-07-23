@@ -5,6 +5,7 @@ Deep Q-Learning algorithm.
 import random
 from collections import deque
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import torch
@@ -53,6 +54,30 @@ class QNetwork(nn.Module):
         return self.net(x)
 
 
+class UniformReplayBuffer:
+    """Classic replay buffer with uniform sampling (FIFO)."""
+
+    def __init__(self, capacity: int):
+        self.buffer = deque(maxlen=capacity)
+
+    def add(self, state, action, reward, next_state, done):
+        self.buffer.append((state, action, reward, next_state, done))
+
+    def sample(self, batch_size: int):
+        minibatch = random.sample(self.buffer, batch_size)
+        states, actions, rewards, next_states, dones = zip(*minibatch, strict=True)
+        states = np.array(states, dtype=np.float32)
+        actions = np.array(actions, dtype=np.int64)
+        rewards = np.array(rewards, dtype=np.float32)
+        next_states = np.array(next_states, dtype=np.float32)
+        dones = np.array(dones, dtype=np.float32)
+        # Return None for index and weights because DQN doesn't need them
+        return (states, actions, rewards, next_states, dones), None, None
+
+    def __len__(self):
+        return len(self.buffer)
+
+
 class DQN(ActionValueEstimator):
     """Deep Q-Learning algorithm for estimating action values."""
 
@@ -63,7 +88,18 @@ class DQN(ActionValueEstimator):
         self.state_size = state_size
 
         # Create Q-network for estimating action values
-        self.q_network = self.build_network().to(self.device)
+        self.q_network: nn.Module = self.build_network().to(self.device)
+        # Create target network with fixed parameters (stabilizes training)
+        self.target_network: nn.Module = self.build_network().to(self.device)
+
+        # torch.compile() (PyTorch >= 2.0) JIT-compiles the network graph
+        # using Triton/CUDA kernels, fusing operations for faster GPU throughput.
+        # Falls back silently if unavailable (e.g., on CPU-only systems).
+        # cast() tells the type checker the result is still nn.Module, since
+        # torch.compile() returns an opaque wrapper that the type system does not recognise.
+        if hasattr(torch, "compile") and self.device.type == "cuda":
+            self.q_network = cast(nn.Module, torch.compile(self.q_network))
+            self.target_network = cast(nn.Module, torch.compile(self.target_network))
 
         # Use SmoothL1Loss (Huber) rather than MSELoss.
         # DQN targets can have large variance; Huber loss is less sensitive to
@@ -74,13 +110,11 @@ class DQN(ActionValueEstimator):
             params=self.q_network.parameters(), lr=self.config.lr
         )
 
-        # Create target network with fixed parameters (stabilizes training)
-        self.target_network = self.build_network().to(self.device)
         # Target network must not accumulate gradients
         self.target_network.eval()
 
         # Create replay buffer for training the Q-network
-        self.replay_buffer: deque = deque(maxlen=self.config.replay_buffer_size)
+        self.replay_buffer = UniformReplayBuffer(config.replay_buffer_size)
 
         # Step counter used to decide when to sync the target network
         self.learning_step: int = 0
@@ -91,14 +125,19 @@ class DQN(ActionValueEstimator):
 
     def get_action_values(self, state: np.ndarray) -> np.ndarray:
         # Convert NumPy array to PyTorch tensor
-        state_tensor = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
+        # Use contiguous() to ensure memory layout is optimal for GPU transfer
+        state_tensor = (
+            torch.as_tensor(state, dtype=torch.float32)
+            .unsqueeze(0)
+            .to(self.device, non_blocking=True)
+        )
 
         # Compute Q-Values for current state
         with torch.no_grad():
             q_values = self.q_network(state_tensor)
 
         # Convert PyTorch tensor to NumPy array
-        return q_values[0].detach().cpu().numpy()
+        return q_values[0].cpu().numpy()
 
     def update_action_values(
         self,
@@ -124,32 +163,87 @@ class DQN(ActionValueEstimator):
         """Store transition between states for future learning."""
 
         # Store transition in replay buffer
-        self.replay_buffer.append((state, action, reward, next_state, done))
+        self.replay_buffer.add(state, action, reward, next_state, done)
 
-    def _learn(self) -> None:
-        """Update the Q-network parameters."""
+    def _get_next_q_values(self, next_states: torch.Tensor) -> torch.Tensor:
+        """Compute the max Q-values for the next states using the target network (Vanilla DQN)."""
+        with torch.no_grad():
+            return self.target_network(next_states).max(1)[0]
 
-        if len(self.replay_buffer) < self.config.batch_size:
-            return
+    def _prepare_tensors(self, unzipped: tuple) -> tuple:
+        """Prepare and convert a batch of transitions (5 or 6 elements) into PyTorch tensors."""
+        states, actions, rewards, next_states, dones = unzipped[:5]
 
-        # Sample a batch of past experiences from replay buffer
-        batch = random.sample(self.replay_buffer, self.config.batch_size)
-        states, actions, rewards, next_states, dones = zip(*batch, strict=True)
-
-        # Obtain PyTorch tensors from NumPy arrays.
-        # torch.from_numpy avoids allocating new memory
-        states = torch.from_numpy(np.array(states, dtype=np.float32)).to(self.device)
-        actions = torch.tensor(actions, dtype=torch.long, device=self.device).unsqueeze(
-            1
+        # Obtain PyTorch tensors from NumPy arrays or lists.
+        states = torch.as_tensor(np.asarray(states), dtype=torch.float32).to(
+            self.device, non_blocking=True
         )
-        rewards = torch.tensor(rewards, dtype=torch.float32, device=self.device)
-        next_states = torch.from_numpy(np.array(next_states, dtype=np.float32)).to(
-            self.device
+        actions = (
+            torch.as_tensor(np.asarray(actions), dtype=torch.long)
+            .to(self.device, non_blocking=True)
+            .unsqueeze(1)
         )
-        dones = torch.tensor(dones, dtype=torch.float32, device=self.device)
+        rewards = torch.as_tensor(np.asarray(rewards), dtype=torch.float32).to(
+            self.device, non_blocking=True
+        )
+        next_states = torch.as_tensor(np.asarray(next_states), dtype=torch.float32).to(
+            self.device, non_blocking=True
+        )
+        dones = torch.as_tensor(np.asarray(dones), dtype=torch.float32).to(
+            self.device, non_blocking=True
+        )
 
         # Clamp actions to valid range
         actions = torch.clamp(actions, 0, self.n_actions - 1)
+
+        # If the batch contains the `actual_n` from the n-step learning.
+        if len(unzipped) == 6:
+            actual_ns = torch.as_tensor(
+                np.asarray(unzipped[5]), dtype=torch.float32
+            ).to(self.device, non_blocking=True)
+            return states, actions, rewards, next_states, dones, actual_ns
+
+        return states, actions, rewards, next_states, dones
+
+    def _optimize_network(self, loss: torch.Tensor) -> None:
+        """Perform the backpropagation step and updates the weights."""
+        self.losses.append(loss.item())
+
+        # set_to_none=True is faster than zero_grad(): it frees gradient memory
+        # instead of setting values to 0, reducing memory bandwidth usage.
+        self.optimizer.zero_grad(set_to_none=True)
+        loss.backward()
+
+        # Clip gradients to prevent exploding gradients.
+        # max_norm=10 is a common conservative bound for DQN.
+        torch.nn.utils.clip_grad_norm_(self.q_network.parameters(), max_norm=10.0)
+        self.optimizer.step()
+
+    def _handle_target_sync(self) -> None:
+        """Periodically sync the target network with the online network."""
+        self.learning_step += 1
+        if self.learning_step % self.config.target_network_sync_freq == 0:
+            # copy_() is faster than load_state_dict(): it copies weights
+            # in-place directly on the GPU without going through Python dicts.
+            for target_param, online_param in zip(
+                self.target_network.parameters(),
+                self.q_network.parameters(),
+                strict=True,
+            ):
+                target_param.data.copy_(online_param.data, non_blocking=True)
+            for target_buf, online_buf in zip(
+                self.target_network.buffers(), self.q_network.buffers(), strict=True
+            ):
+                target_buf.data.copy_(online_buf.data, non_blocking=True)
+
+    def _compute_q_values_and_targets(
+        self, tensors: tuple
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Calculate the current Q values and Q targets (broken down into DQN and PER)."""
+        if len(tensors) == 6:
+            states, actions, rewards, next_states, dones, _ = tensors
+        else:
+            states, actions, rewards, next_states, dones = tensors
 
         # Compute action values for the current states
         q_values = self.q_network(states).gather(1, actions).squeeze(1)
@@ -160,27 +254,34 @@ class DQN(ActionValueEstimator):
         # same network would be used both to generate targets and to be updated,
         # creating a moving-target problem that destabilises training.
         with torch.no_grad():
-            q_next = self.target_network(next_states).max(1)[0]
+            q_next = self._get_next_q_values(next_states)
             # Q_target = r + gamma * max_a' Q_target(s', a') * (1 - done)
             q_target = rewards + self.config.gamma * q_next * (1 - dones)
 
+        return q_values, q_target
+
+    def _learn(self) -> None:
+        """Update the Q-network parameters."""
+
+        if len(self.replay_buffer) < self.config.batch_size:
+            return
+
+        # Sample a batch of past experiences from replay buffer
+        tensors_data, _, _ = self.replay_buffer.sample(self.config.batch_size)
+
+        # Prepare and convert a batch of transitions (5 or 6 elements) into PyTorch tensors.
+        tensors = self._prepare_tensors(tensors_data)
+
+        # Calculate the current Q values and Q targets (broken down into DQN and PER).
+        q_values, q_target = self._compute_q_values_and_targets(tensors)
+
         loss = self.loss_fn(q_values, q_target)
-        self.losses.append(loss.item())
 
-        # Update Q-network parameters through a gradient descent step
-        self.optimizer.zero_grad()
-        loss.backward()
-
-        # Clip gradients to prevent exploding gradients.
-        # max_norm=10 is a common conservative bound for DQN.
-        torch.nn.utils.clip_grad_norm_(self.q_network.parameters(), max_norm=10.0)
-
-        self.optimizer.step()
+        # Perform the backpropagation step and updates the weights.
+        self._optimize_network(loss)
 
         # Periodically sync the target network with the online network.
-        self.learning_step += 1
-        if self.learning_step % self.config.target_network_sync_freq == 0:
-            self.target_network.load_state_dict(self.q_network.state_dict())
+        self._handle_target_sync()
 
     def save_state(self, dir: str) -> None:
         Path(dir).mkdir(parents=True, exist_ok=True)

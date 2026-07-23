@@ -1,0 +1,36 @@
+[
+  {
+    "name": "Phase 1",
+    "n_episodes": 100,
+    "env_overrides": {
+      "robot_enabled": false,
+      "reward_noise_std": 0.0,
+      "enable_reward_change": false,
+      "active_treadmills": ["lower"]
+    }
+  },
+  {
+    "name": "Phase 2",
+    "n_episodes": 200,
+    "env_overrides": {
+      "robot_enabled": true,
+      "robot_slow_mode": true,
+      "robot_strategy": "random_object",
+      "reward_noise_std": 0.0,
+      "enable_reward_change": false,
+      "active_treadmills": ["middle", "lower"]
+    }
+  },
+  {
+    "name": "Phase 3",
+    "n_episodes": 300,
+    "env_overrides": {
+      "robot_enabled": true,
+      "robot_slow_mode": false,
+      "robot_strategy": "best_object",
+      "reward_noise_std": 0.0,
+      "enable_reward_change": false,
+      "active_treadmills": ["upper", "middle", "lower"]
+    }
+  }
+]

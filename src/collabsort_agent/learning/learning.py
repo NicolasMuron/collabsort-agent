@@ -16,10 +16,18 @@ class Config:
     """Learning configuration"""
 
     # Learning algorithm to use
-    algorithm: Literal["ql", "dqn", "dueling_dqn"] = "ql"
+    algorithm: Literal[
+        "ql",
+        "dqn",
+        "dueling_dqn",
+        "ddqn",
+        "dd_dqn",
+        "per",
+        "n_step",
+    ] = "ql"
 
     # Discount factor for Temporal-Difference algorithms
-    gamma: float = 0.95
+    gamma: float = 0.99
 
     # Learning rate for gradient descent
     lr: float = 1e-3
@@ -34,16 +42,25 @@ class Config:
     alpha_max: float = 0.5
 
     # Batch size for sampling from replay buffer
-    batch_size: int = 64
+    batch_size: int = 256
 
     # Size of the DQN replay buffer
-    replay_buffer_size: int = 10000
+    replay_buffer_size: int = 100000
+
+    # Number of steps for n-step returns (1 = standard DQN)
+    n_step: int = 3
 
     # Interval in learning steps to copy online weights to target network.
     target_network_sync_freq: int = 500
 
     # Initial Q-Value
     q_start: float = 0
+
+    # Number of training episodes
+    n_episodes: int = 300
+
+    # Maximal number of steps in an episode
+    n_steps_episode: int = 1000
 
 
 class ActionValueEstimator(ABC):
