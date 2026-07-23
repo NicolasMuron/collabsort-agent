@@ -22,7 +22,7 @@ class Config:
     """Memory configuration"""
 
     # Memory type to use
-    type: Literal["none", "target", "stack", "stack+target"] = "stack"
+    type: Literal["none", "target", "stack", "stack+target"] = "none"
 
     # Number of past frames to stack (for "stack" and "stack+target")
     stack_size: int = 2
