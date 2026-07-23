@@ -52,19 +52,20 @@ class SumTree:
         self._propagate(tree_index, change)
 
     def _retrieve(self, idx: int, s: float) -> int:
-        left_child_index = 2 * idx + 1
-        right_child_index = left_child_index + 1
+        tree_len = len(self.tree)
+        while True:
+            left_child_index = 2 * idx + 1
+            right_child_index = left_child_index + 1
 
-        # If we've reached the bottom of the tree (the leaves)
-        if left_child_index >= len(self.tree):
-            return idx
+            # If we've reached the bottom of the tree (the leaves)
+            if left_child_index >= tree_len:
+                return idx
 
-        if s <= self.tree[left_child_index]:
-            return self._retrieve(left_child_index, s)
-        else:
-            # Security: Make sure you don't try to access a value greater than what the tree contains
-            remaining_val = s - self.tree[left_child_index]
-            return self._retrieve(right_child_index, remaining_val)
+            if s <= self.tree[left_child_index]:
+                idx = left_child_index
+            else:
+                s -= self.tree[left_child_index]
+                idx = right_child_index
 
     def get_leaf(self, s: float) -> tuple[int, float, Any]:
         leaf_index = self._retrieve(0, s)
@@ -192,8 +193,11 @@ class PER(DQN):
         batch, idxs, is_weights = self._sample()
 
         # We'll let DQN handle the preparation of the standard tensors
-        tensors = self._prepare_tensors(batch)
-        is_weights_t = torch.tensor(is_weights, dtype=torch.float32, device=self.device)
+        unzipped = tuple(zip(*batch, strict=True))
+        tensors = self._prepare_tensors(unzipped)
+        is_weights_t = torch.as_tensor(is_weights, dtype=torch.float32).to(
+            self.device, non_blocking=True
+        )
 
         # Calculation of the element-wise loss weighted by the IS weights
         q_values, q_target = self._compute_q_values_and_targets(tensors)

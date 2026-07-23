@@ -3,10 +3,11 @@ Train an agent.
 """
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import gymnasium as gym
 import numpy as np
+import torch
 import tyro
 from gym_collabsort.config import Action
 from torch.utils.tensorboard import SummaryWriter
@@ -14,6 +15,7 @@ from tqdm import trange
 
 from collabsort_agent.agent import Agent
 from collabsort_agent.config import Config, save_cfg
+from collabsort_agent.metrics_tracker import HeatmapTracker
 
 # Decisions
 from collabsort_agent.decision.ard import ARD
@@ -33,9 +35,95 @@ from collabsort_agent.learning.per import PER
 from collabsort_agent.learning.n_step_learning import NStepLearning
 from collabsort_agent.learning.q_learning import Qlearning
 
-from collabsort_agent.memory import Memory
+from collabsort_agent.memory.memory import Memory
 from collabsort_agent.metacognition import MetaController
 from collabsort_agent.perception import Perceiver
+
+
+@dataclass
+class EpisodeMetrics:
+    """Episode metrics"""
+
+    # Cumulated reward
+    reward: float = 0
+
+    # Number of collisions
+    collisions: int = 0
+
+    # Number of collected objects
+    collected_objects: int = 0
+
+    # Episode time step (= number of time steps since beginning of episode)
+    step: int = 0
+
+    # Number of steps per second
+    sps: float = 0
+
+    # Number of direction changes (UP/DOWN oscillations)
+    oscillations: int = 0
+
+    # Number of movement actions
+    movement_actions: int = 0
+
+    # Picked object values for this episode
+    picked_values: list[float] = field(default_factory=list)
+
+    # Added metrics
+    robot_collected_objects: int = 0
+    missed_objects: int = 0
+
+    def log(
+        self,
+        logger: SummaryWriter | None,
+        episode: int,
+    ) -> None:
+        """Log metrics"""
+
+        if logger is not None:
+            logger.add_scalar(
+                tag="training/cumulated_reward",
+                scalar_value=self.reward,
+                global_step=episode,
+            )
+            logger.add_scalar(
+                tag="training/collisions",
+                scalar_value=self.collisions,
+                global_step=episode,
+            )
+            logger.add_scalar(
+                tag="training/collected_objects",
+                scalar_value=self.collected_objects,
+                global_step=episode,
+            )
+            logger.add_scalar(
+                tag="training/steps_per_seconds",
+                scalar_value=self.sps,
+                global_step=episode,
+            )
+
+            if self.step > 0:
+                logger.add_scalar(
+                    tag="training/movement_ratio",
+                    scalar_value=self.movement_actions / self.step,
+                    global_step=episode,
+                )
+            if len(self.picked_values) > 0:
+                logger.add_scalar(
+                    tag="training/avg_reward_per_object",
+                    scalar_value=sum(self.picked_values) / len(self.picked_values),
+                    global_step=episode,
+                )
+
+            logger.add_scalar(
+                tag="training/robot_collected_objects",
+                scalar_value=self.robot_collected_objects,
+                global_step=episode,
+            )
+            logger.add_scalar(
+                tag="training/missed_objects",
+                scalar_value=self.missed_objects,
+                global_step=episode,
+            )
 
 
 def _build_estimator(
@@ -129,9 +217,13 @@ def create_agent(config: Config, sample_obs: dict, rng: np.random.Generator) -> 
     )
     sample_sensory_state = perceiver.get_sensory_state(obs=sample_obs)
 
-    if config.memory.type != "none":
-        raise ValueError(f"Unrecognized memory type: {config.memory.type}")
-    memory = Memory()
+    # Build memory module
+    mem_type = config.memory.type
+
+    if mem_type == "none":
+        memory: Memory = Memory()
+    else:
+        raise ValueError(f"Unrecognized memory type: {mem_type}")
 
     sample_extended_state = memory.get_extended_state(
         sensory_state=sample_sensory_state
@@ -155,65 +247,18 @@ def create_agent(config: Config, sample_obs: dict, rng: np.random.Generator) -> 
     return Agent(perceiver=perceiver, memory=memory, deliberator=deliberator)
 
 
-@dataclass
-class EpisodeMetrics:
-    """Episode metrics"""
-
-    # Cumulated reward
-    reward: float = 0
-
-    # Number of collisions
-    collisions: int = 0
-
-    # Number of collected objects
-    collected_objects: int = 0
-
-    # Episode time step (= number of time steps since beginning of episode)
-    step: int = 0
-
-    # Number of steps per second
-    sps: float = 0
-
-    def log(
-        self,
-        logger: SummaryWriter | None,
-        episode: int,
-    ) -> None:
-        """Log metrics"""
-
-        if logger is not None:
-            logger.add_scalar(
-                tag="training/cumulated_reward",
-                scalar_value=self.reward,
-                global_step=episode,
-            )
-            logger.add_scalar(
-                tag="training/collisions",
-                scalar_value=self.collisions,
-                global_step=episode,
-            )
-            logger.add_scalar(
-                tag="training/collected_objects",
-                scalar_value=self.collected_objects,
-                global_step=episode,
-            )
-            logger.add_scalar(
-                tag="training/steps_per_seconds",
-                scalar_value=self.sps,
-                global_step=episode,
-            )
-
-
 def train(config: Config) -> None:
     """Train an agent"""
+
+    # Allow PyTorch to use TF32 (tensor float 32) on Ampere+ GPUs.
+    torch.set_float32_matmul_precision("high")
 
     # Create directory path for training output
     train_dir: str = f"runs/train_{int(time.time())}_{config.decision.algorithm}_{config.learning.algorithm}"
 
     logger = None
     if config.log_events:
-        # Initialize logging
-        logger = SummaryWriter(f"{train_dir}")
+        logger = SummaryWriter(f"{train_dir}", flush_secs=60)
 
     # Initialize environment
     env = gym.make("CollabSort-v0", config=config.env)
@@ -228,20 +273,59 @@ def train(config: Config) -> None:
 
     start_time = time.time()
 
+    heatmap_tracker = HeatmapTracker(log_freq=20)
+
     # Global loop
     for episode in trange(config.n_episodes, desc="Training progress"):
-        # Reset environment and metrics for new episode
+        # Reset environment and memory for new episode
         obs, _ = env.reset()
         ep_metrics = EpisodeMetrics()
+        action_history: list[int] = []
         ep_over: bool = False
+        episode_visitation = np.zeros(config.env.n_rows + 1, dtype=np.int32)
+        episode_collisions = np.zeros(config.env.n_rows + 1, dtype=np.int32)
+        episode_spatial_actions: dict[int, dict[int, int]] = {}
+
+        # Previous action string for oscillation counting
+        prev_action_str: str | None = None
 
         # Episode loop
         while not ep_over:
+            # Extract agent row for spatial tracking
+            agent_row = int(obs["self"]["coords"][0])
+
+            # Record visitation
+            if 1 <= agent_row <= config.env.n_rows:
+                episode_visitation[agent_row] += 1
+
             # Agent chooses an action
             action: Action = agent.act(
                 obs=obs,
                 training_step=training_step,
             )
+
+            # Count oscillations (UP/DOWN direction changes)
+            current_action_str = action.name
+
+            if prev_action_str is not None:
+                if (prev_action_str == "UP" and current_action_str == "DOWN") or (
+                    prev_action_str == "DOWN" and current_action_str == "UP"
+                ):
+                    ep_metrics.oscillations += 1
+
+            prev_action_str = current_action_str
+
+            if current_action_str in ("UP", "DOWN"):
+                ep_metrics.movement_actions += 1
+
+            action_idx = int(action.value)
+            action_history.append(action_idx)
+
+            if agent_row not in episode_spatial_actions:
+                episode_spatial_actions[agent_row] = {}
+            if action_idx not in episode_spatial_actions[agent_row]:
+                episode_spatial_actions[agent_row][action_idx] = 0
+            episode_spatial_actions[agent_row][action_idx] += 1
 
             # Take action and observe result
             next_obs, reward, terminated, truncated, info = env.step(action=action)
@@ -258,6 +342,15 @@ def train(config: Config) -> None:
             ep_metrics.reward += reward
             ep_metrics.collisions += info["n_collisions"]
             ep_metrics.collected_objects += info["n_placed_objects"]
+            ep_metrics.robot_collected_objects += info.get("robot_placed_objects", 0)
+            ep_metrics.missed_objects += info.get("n_fallen_objects", 0)
+
+            if info.get("agent_picked_value") is not None:
+                ep_metrics.picked_values.append(info["agent_picked_value"])
+
+            if info.get("agent_collision") and 1 <= agent_row <= config.env.n_rows:
+                episode_collisions[agent_row] += 1
+
             ep_metrics.step += 1
 
             # Move to next state
@@ -274,6 +367,24 @@ def train(config: Config) -> None:
             episode=episode,
         )
         agent.log_episode(logger=logger, episode=episode)
+
+        # --- HEATMAPS ---
+        try:
+            n_actions = int(agent.deliberator.estimator.n_actions)
+        except Exception:
+            n_actions = int(len(Action))
+
+        heatmap_tracker.update(
+            action_history=action_history,
+            picked_values=ep_metrics.picked_values,
+            episode_visitation=episode_visitation,
+            episode_collisions=episode_collisions,
+            spatial_actions=episode_spatial_actions,
+            n_actions=n_actions,
+        )
+        heatmap_tracker.log_heatmaps(
+            logger=logger, episode=episode, n_actions=n_actions
+        )
 
     env.close()
 
