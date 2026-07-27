@@ -3,10 +3,11 @@ N-step learning algorithm
 """
 
 import random
+
 import numpy as np
 import torch
 
-from collabsort_agent.learning import Config as LearningConfig
+from collabsort_agent.learning import LearningConfig
 from collabsort_agent.learning.dqn import DQN
 
 

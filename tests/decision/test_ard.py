@@ -8,8 +8,7 @@ import numpy as np
 from collabsort_agent.decision import DecisionConfig
 from collabsort_agent.decision.ard import ARD
 from collabsort_agent.decision.decision_rule import WinAllRule
-from collabsort_agent.learning import ActionValueEstimator
-from collabsort_agent.learning import Config as LearningConfig
+from collabsort_agent.learning import ActionValueEstimator, LearningConfig
 from collabsort_agent.metacognition import Config as MetaConfig
 from collabsort_agent.metacognition import Hyperparameters
 from collabsort_agent.metacognition.confidence import BayesianConfidence

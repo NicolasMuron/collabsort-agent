@@ -4,7 +4,8 @@ Unit tests for the Double DQN algorithm.
 
 import numpy as np
 import torch
-from collabsort_agent.learning import Config as LearningConfig
+
+from collabsort_agent.learning import LearningConfig
 from collabsort_agent.learning.double_dqn import DoubleDQN
 from tests.learning.test_dqn import TestDQN
 

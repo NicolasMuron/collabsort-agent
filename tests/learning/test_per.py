@@ -2,10 +2,11 @@
 Unit tests for the PER (Prioritized Experience Replay) algorithm and SumTree.
 """
 
-import numpy as np
 from typing import Any
 
-from collabsort_agent.learning import Config as LearningConfig
+import numpy as np
+
+from collabsort_agent.learning import LearningConfig
 from collabsort_agent.learning.per import PER, SumTree
 from tests.learning.test_dqn import TestDQN
 

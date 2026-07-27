@@ -1,8 +1,9 @@
 import numpy as np
 import pytest
-from tests.learning.test_dqn import TestDQN
-from collabsort_agent.learning import Config as LearningConfig
+
+from collabsort_agent.learning import LearningConfig
 from collabsort_agent.learning.n_step_learning import NStepLearning
+from tests.learning.test_dqn import TestDQN
 
 
 class TestNStepLearning(TestDQN):  # Inherit from TestDQN to test DQN compliance

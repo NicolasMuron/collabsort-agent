@@ -7,8 +7,7 @@ from collections import defaultdict
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
-from collabsort_agent.learning import ActionValueEstimator
-from collabsort_agent.learning import Config as LearningConfig
+from collabsort_agent.learning import ActionValueEstimator, LearningConfig
 from collabsort_agent.metacognition import Hyperparameters
 
 

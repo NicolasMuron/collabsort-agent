@@ -3,12 +3,13 @@ PER (Prioritized Experience Replay) algorithm.
 """
 
 from typing import Any
+
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from collabsort_agent.learning import Config as LearningConfig
+from collabsort_agent.learning import LearningConfig
 from collabsort_agent.learning.dqn import DQN
 
 

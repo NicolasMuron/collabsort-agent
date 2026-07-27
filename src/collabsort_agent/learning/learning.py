@@ -12,7 +12,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 @dataclass
-class Config:
+class LearningConfig:
     """Learning configuration"""
 
     # Learning algorithm to use
@@ -68,7 +68,7 @@ class ActionValueEstimator(ABC):
 
     def __init__(
         self,
-        config: Config,
+        config: LearningConfig,
         n_actions: int,
     ) -> None:
         self.config = config

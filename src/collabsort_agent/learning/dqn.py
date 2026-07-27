@@ -12,8 +12,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from collabsort_agent.learning import ActionValueEstimator
-from collabsort_agent.learning import Config as LearningConfig
+from collabsort_agent.learning import ActionValueEstimator, LearningConfig
 
 
 def get_device() -> torch.device:

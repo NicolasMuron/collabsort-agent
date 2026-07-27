@@ -5,7 +5,7 @@ Unit tests for the DQN algorithm.
 import numpy as np
 import torch
 
-from collabsort_agent.learning import Config as LearningConfig
+from collabsort_agent.learning import LearningConfig
 from collabsort_agent.learning.dqn import DQN
 
 
