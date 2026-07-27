@@ -18,7 +18,7 @@ class MemoryAction(Enum):
 
 
 @dataclass
-class Config:
+class MemoryConfig:
     """Memory configuration"""
 
     # Memory type to use

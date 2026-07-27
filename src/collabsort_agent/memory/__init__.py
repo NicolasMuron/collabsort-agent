@@ -3,6 +3,6 @@ Package definition file.
 """
 
 # Avoir repeating ".memory" in imports
-from collabsort_agent.memory.memory import Config, Memory
+from collabsort_agent.memory.memory import Memory, MemoryConfig
 
-__all__ = ["Memory", "Config"]
+__all__ = ["Memory", "MemoryConfig"]
