@@ -8,7 +8,7 @@ import numpy as np
 
 
 @dataclass
-class Config:
+class PerceptionConfig:
     """Perception configuration."""
 
     # Number of perceived columns in an observation
@@ -22,7 +22,7 @@ class Perceiver:
 
     def __init__(
         self,
-        config: Config,
+        config: PerceptionConfig,
         treadmill_rows: list[int],
         upper_treadmill_row: int | None = None,
         middle_treadmill_row: int | None = None,

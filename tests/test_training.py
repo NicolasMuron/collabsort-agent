@@ -9,7 +9,7 @@ from collabsort_agent.decision import DecisionConfig
 from collabsort_agent.learning import LearningConfig
 from collabsort_agent.memory import MemoryConfig
 from collabsort_agent.metacognition import MetaConfig
-from collabsort_agent.perception import Config as PerceptionConfig
+from collabsort_agent.perception import PerceptionConfig
 from collabsort_agent.train import train
 
 

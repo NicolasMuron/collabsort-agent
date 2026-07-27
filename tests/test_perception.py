@@ -6,8 +6,7 @@ import gymnasium as gym
 import numpy as np
 from gym_collabsort.config import Config as EnvConfig
 
-from collabsort_agent.perception import Config as PerceptionConfig
-from collabsort_agent.perception import Perceiver
+from collabsort_agent.perception import Perceiver, PerceptionConfig
 
 
 def make_perceiver(
