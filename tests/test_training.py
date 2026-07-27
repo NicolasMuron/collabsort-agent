@@ -8,7 +8,7 @@ from collabsort_agent.config import Config, load_cfg, save_cfg
 from collabsort_agent.decision import DecisionConfig
 from collabsort_agent.learning import LearningConfig
 from collabsort_agent.memory import MemoryConfig
-from collabsort_agent.metacognition import Config as MetaConfig
+from collabsort_agent.metacognition import MetaConfig
 from collabsort_agent.perception import Config as PerceptionConfig
 from collabsort_agent.train import train
 

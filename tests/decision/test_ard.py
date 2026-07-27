@@ -9,8 +9,7 @@ from collabsort_agent.decision import DecisionConfig
 from collabsort_agent.decision.ard import ARD
 from collabsort_agent.decision.decision_rule import WinAllRule
 from collabsort_agent.learning import ActionValueEstimator, LearningConfig
-from collabsort_agent.metacognition import Config as MetaConfig
-from collabsort_agent.metacognition import Hyperparameters
+from collabsort_agent.metacognition import Hyperparameters, MetaConfig
 from collabsort_agent.metacognition.confidence import BayesianConfidence
 from collabsort_agent.metacognition.controller import MetaController
 from collabsort_agent.metacognition.monitoring import MetaMonitoring

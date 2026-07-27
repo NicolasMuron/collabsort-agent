@@ -10,7 +10,7 @@ from collabsort_agent.learning.learning import LearningConfig
 
 
 @dataclass
-class Config:
+class MetaConfig:
     """Metacognition configuration"""
 
     # Method used to compute decision confidence:

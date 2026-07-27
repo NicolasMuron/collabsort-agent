@@ -10,8 +10,7 @@ from torch.utils.tensorboard import SummaryWriter
 from collabsort_agent.decision import DecisionConfig
 from collabsort_agent.decision.accumulators import Accumulators
 from collabsort_agent.learning import LearningConfig
-from collabsort_agent.metacognition import Config as MetaConfig
-from collabsort_agent.metacognition import Hyperparameters
+from collabsort_agent.metacognition import Hyperparameters, MetaConfig
 from collabsort_agent.metacognition.confidence import BayesianConfidence, GapConfidence
 from collabsort_agent.metacognition.controller import MetaController
 

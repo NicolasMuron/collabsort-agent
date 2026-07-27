@@ -3,6 +3,6 @@ Package definition file.
 """
 
 # Avoir repeating ".metacognition" in imports
-from collabsort_agent.metacognition.metacognition import Config, Hyperparameters
+from collabsort_agent.metacognition.metacognition import Hyperparameters, MetaConfig
 
-__all__ = ["Config", "Hyperparameters"]
+__all__ = ["MetaConfig", "Hyperparameters"]

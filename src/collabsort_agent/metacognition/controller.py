@@ -8,7 +8,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from collabsort_agent.decision import DecisionConfig
 from collabsort_agent.learning import LearningConfig
-from collabsort_agent.metacognition import Config, Hyperparameters
+from collabsort_agent.metacognition import Hyperparameters, MetaConfig
 
 
 class MetaController:
@@ -16,7 +16,7 @@ class MetaController:
 
     def __init__(
         self,
-        config: Config,
+        config: MetaConfig,
         learning_cfg: LearningConfig,
         decision_cfg: DecisionConfig,
         hyperparameters: Hyperparameters,
