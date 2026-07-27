@@ -5,7 +5,7 @@ Common definitions for metacognition algorithms.
 from dataclasses import dataclass
 from typing import Literal
 
-from collabsort_agent.decision.decision import Config as DecisionConfig
+from collabsort_agent.decision.decision import DecisionConfig
 from collabsort_agent.learning.learning import Config as LearningConfig
 
 

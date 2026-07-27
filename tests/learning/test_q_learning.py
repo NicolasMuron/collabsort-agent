@@ -4,7 +4,7 @@ Unit tests for the QL algorithm.
 
 import numpy as np
 
-from collabsort_agent.decision import Config as DecisionConfig
+from collabsort_agent.decision import DecisionConfig
 from collabsort_agent.learning import Config as LearningConfig
 from collabsort_agent.learning.q_learning import Qlearning
 from collabsort_agent.metacognition import Hyperparameters

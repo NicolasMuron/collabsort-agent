@@ -5,7 +5,7 @@ Unit tests for exploration decay algorithms.
 import numpy as np
 from numpy.testing import assert_almost_equal
 
-from collabsort_agent.decision import Config as DecisionConfig
+from collabsort_agent.decision import DecisionConfig
 from collabsort_agent.decision.epsilon_greedy import EpsilonGreedy
 from collabsort_agent.decision.exploration_decay import (
     ExponentialExplorationDecay,

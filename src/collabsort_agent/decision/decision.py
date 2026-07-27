@@ -13,7 +13,7 @@ from collabsort_agent.learning import ActionValueEstimator
 
 
 @dataclass
-class Config:
+class DecisionConfig:
     """Decision configuration"""
 
     # Deision algorithm to use
@@ -76,7 +76,10 @@ class Deliberator(ABC):
     """Base class for decision-making algorithms."""
 
     def __init__(
-        self, config: Config, estimator: ActionValueEstimator, rng: np.random.Generator
+        self,
+        config: DecisionConfig,
+        estimator: ActionValueEstimator,
+        rng: np.random.Generator,
     ) -> None:
         self.config = config
         self.estimator = estimator

@@ -6,7 +6,7 @@ import math
 from abc import ABC, abstractmethod
 
 from collabsort_agent.decision.accumulators import Accumulators
-from collabsort_agent.decision.decision import Config as DecisionConfig
+from collabsort_agent.decision.decision import DecisionConfig
 from collabsort_agent.metacognition import Hyperparameters
 
 

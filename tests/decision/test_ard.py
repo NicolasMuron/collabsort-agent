@@ -5,7 +5,7 @@ Unit tests for the Advantage Racing Diffusion (ARD) deliberator.
 import matplotlib.pyplot as plt
 import numpy as np
 
-from collabsort_agent.decision import Config as DecisionConfig
+from collabsort_agent.decision import DecisionConfig
 from collabsort_agent.decision.ard import ARD
 from collabsort_agent.decision.decision_rule import WinAllRule
 from collabsort_agent.learning import ActionValueEstimator

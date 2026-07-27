@@ -5,8 +5,7 @@ Advantage Racing Diffusion definitions.
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
-from collabsort_agent.decision import Config as DecisionConfig
-from collabsort_agent.decision import Deliberator
+from collabsort_agent.decision import DecisionConfig, Deliberator
 from collabsort_agent.decision.accumulators import Accumulators
 from collabsort_agent.decision.decision_rule import DecisionRule
 from collabsort_agent.learning import ActionValueEstimator

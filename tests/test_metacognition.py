@@ -7,7 +7,7 @@ from typing import cast
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
-from collabsort_agent.decision import Config as DecisionConfig
+from collabsort_agent.decision import DecisionConfig
 from collabsort_agent.decision.accumulators import Accumulators
 from collabsort_agent.learning import Config as LearningConfig
 from collabsort_agent.metacognition import Config as MetaConfig

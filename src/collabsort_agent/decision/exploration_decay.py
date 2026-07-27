@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
-from collabsort_agent.decision import Config as DecisionConfig
+from collabsort_agent.decision import DecisionConfig
 
 
 class ExplorationDecay(ABC):

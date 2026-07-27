@@ -5,10 +5,10 @@ Unit tests for training.
 from gym_collabsort.config import Config as EnvConfig
 
 from collabsort_agent.config import Config, load_cfg, save_cfg
-from collabsort_agent.decision import Config as DecisionConfig
+from collabsort_agent.decision import DecisionConfig
 from collabsort_agent.learning import Config as LearningConfig
-from collabsort_agent.metacognition import Config as MetaConfig
 from collabsort_agent.memory import Config as MemoryConfig
+from collabsort_agent.metacognition import Config as MetaConfig
 from collabsort_agent.perception import Config as PerceptionConfig
 from collabsort_agent.train import train
 

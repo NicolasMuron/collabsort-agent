@@ -8,8 +8,7 @@ import numpy as np
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
-from collabsort_agent.decision import Config as DecisionConfig
-from collabsort_agent.decision import Deliberator
+from collabsort_agent.decision import DecisionConfig, Deliberator
 from collabsort_agent.decision.exploration_decay import ExplorationDecay
 from collabsort_agent.learning import ActionValueEstimator
 

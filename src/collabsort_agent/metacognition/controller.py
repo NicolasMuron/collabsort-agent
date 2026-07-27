@@ -6,7 +6,7 @@ from statistics import mean
 
 from torch.utils.tensorboard import SummaryWriter
 
-from collabsort_agent.decision import Config as DecisionConfig
+from collabsort_agent.decision import DecisionConfig
 from collabsort_agent.learning import Config as LearningConfig
 from collabsort_agent.metacognition import Config, Hyperparameters
 
