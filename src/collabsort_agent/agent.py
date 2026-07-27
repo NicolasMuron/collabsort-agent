@@ -51,7 +51,7 @@ class Agent:
         """Update agent after an action"""
 
         if self.current_extended_state is None or not self.current_action:
-            raise Exception("Trying to update agent with non-existent state")
+            raise RuntimeError("Trying to update agent with non-existent state")
 
         # Compute next extended state (sensory + memory) for the transition
         next_sensory_state = self.perceiver.get_sensory_state(obs=next_obs)

@@ -335,11 +335,11 @@ def train(config: Config) -> None:
             # Count oscillations (UP/DOWN direction changes)
             current_action_str = action.name
 
-            if prev_action_str is not None:
-                if (prev_action_str == "UP" and current_action_str == "DOWN") or (
-                    prev_action_str == "DOWN" and current_action_str == "UP"
-                ):
-                    ep_metrics.oscillations += 1
+            if prev_action_str is not None and (
+                (prev_action_str == "UP" and current_action_str == "DOWN")
+                or (prev_action_str == "DOWN" and current_action_str == "UP")
+            ):
+                ep_metrics.oscillations += 1
 
             prev_action_str = current_action_str
 
@@ -399,8 +399,8 @@ def train(config: Config) -> None:
         # --- HEATMAPS ---
         try:
             n_actions = int(agent.deliberator.estimator.n_actions)
-        except Exception:
-            n_actions = int(len(Action))
+        except (AttributeError, TypeError):
+            n_actions = len(Action)
 
         heatmap_tracker.update(
             action_history=action_history,

@@ -3,6 +3,7 @@ Double Deep Q-Learning algorithm
 """
 
 import torch
+
 from collabsort_agent.learning.dqn import DQN
 
 

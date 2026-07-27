@@ -7,18 +7,18 @@ import json
 import time
 from dataclasses import dataclass
 
-import numpy as np
 import gymnasium as gym
+import numpy as np
 import torch
 import tyro
-from gym_collabsort.config import Action, Config as EnvConfig, RobotStrategy
+from gym_collabsort.config import Action, RobotStrategy
+from gym_collabsort.config import Config as EnvConfig
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import trange
 
-from collabsort_agent.metrics_tracker import HeatmapTracker
-
 from collabsort_agent.config import Config, save_cfg
 from collabsort_agent.decision.epsilon_greedy import EpsilonGreedy
+from collabsort_agent.metrics_tracker import HeatmapTracker
 from collabsort_agent.train import EpisodeMetrics, create_agent
 
 
@@ -84,7 +84,7 @@ def load_curriculum_from_json(
 
     # Crucial step for zero-padding: the agent's initial perceiver must have ALL treadmills
     # that will be used across the entire curriculum, to initialize the correct network size.
-    base_config.env.active_treadmills = tuple(sorted(list(all_active_treadmills)))
+    base_config.env.active_treadmills = tuple(sorted(all_active_treadmills))
     print(
         f"Agent's perceiver initialized with global active treadmills: {base_config.env.active_treadmills}"
     )
@@ -125,11 +125,10 @@ def train_curriculum(base_config: Config, phases: list[CurriculumPhase]) -> None
         rng=temp_env.np_random,
     )
 
-    if not base_config.decision.reset_exploration_per_phase:
-        if isinstance(agent.deliberator, EpsilonGreedy):
-            agent.deliberator.exploration_decay.reset(
-                total_steps=total_curriculum_steps
-            )
+    if not base_config.decision.reset_exploration_per_phase and isinstance(
+        agent.deliberator, EpsilonGreedy
+    ):
+        agent.deliberator.exploration_decay.reset(total_steps=total_curriculum_steps)
     temp_env.close()
 
     # Training time step (= number of time steps since beginning of training)
@@ -190,11 +189,11 @@ def train_curriculum(base_config: Config, phases: list[CurriculumPhase]) -> None
                 # Count oscillations (UP/DOWN direction changes)
                 current_action_str = action.name
 
-                if prev_action_str is not None:
-                    if (prev_action_str == "UP" and current_action_str == "DOWN") or (
-                        prev_action_str == "DOWN" and current_action_str == "UP"
-                    ):
-                        ep_metrics.oscillations += 1
+                if prev_action_str is not None and (
+                    (prev_action_str == "UP" and current_action_str == "DOWN")
+                    or (prev_action_str == "DOWN" and current_action_str == "UP")
+                ):
+                    ep_metrics.oscillations += 1
 
                 prev_action_str = current_action_str
 
@@ -264,8 +263,8 @@ def train_curriculum(base_config: Config, phases: list[CurriculumPhase]) -> None
             # --- HEATMAPS ---
             try:
                 n_actions = int(agent.deliberator.estimator.n_actions)
-            except Exception:
-                n_actions = int(len(Action))
+            except (AttributeError, TypeError):
+                n_actions = len(Action)
 
             heatmap_tracker.update(
                 action_history=action_history,

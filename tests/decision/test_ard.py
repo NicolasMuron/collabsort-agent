@@ -100,10 +100,8 @@ class TestARD:
                 )
 
                 # Add labels for each accumulator
-                line_i = 0
-                for i, j in ard.accumulators.action_pairs:
+                for line_i, (i, j) in enumerate(ard.accumulators.action_pairs):
                     lines[line_i].set_label(f"({i},{j})")
-                    line_i += 1
 
                 # Change line style for accumulators (0,*) and (2,*).
                 # (Should be improved from n_actions != 3)

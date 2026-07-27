@@ -54,11 +54,11 @@ class TestSumTree:
         )  # leaf index 4, cumulative priority range [1, 3]
 
         # Searching inside the cumulative tree ranges
-        idx, p, data = tree.get_leaf(0.5)
+        _, p, data = tree.get_leaf(0.5)
         assert data == ("data1",)
         assert p == 1.0
 
-        idx, p, data = tree.get_leaf(2.5)
+        _, p, data = tree.get_leaf(2.5)
         assert data == ("data2",)
         assert p == 2.0
 
@@ -142,7 +142,7 @@ class TestPER(TestDQN):
         tree.add(priority=10.0, data=("right",))
 
         # Requesting priority inside the right-hand cumulative range
-        idx, p, data = tree.get_leaf(12.0)
+        _, p, data = tree.get_leaf(12.0)
         assert data == ("right",)
         assert p == 10.0
 
@@ -158,7 +158,7 @@ class TestPER(TestDQN):
         invalid_data: Any = 0
         agent.tree.data[0] = invalid_data
 
-        minibatch, idxs, is_weights = agent._sample()
+        minibatch, _, _ = agent._sample()
         assert len(minibatch) == 1
 
     def test_per_sample_max_weight_zero_security(self) -> None:
@@ -173,6 +173,6 @@ class TestPER(TestDQN):
         # Manually force all priority leaves to zero
         agent.tree.tree[:] = 0.0
 
-        minibatch, idxs, is_weights = agent._sample()
+        _, _, is_weights = agent._sample()
         # Weights should not cause NaN values or ZeroDivisionError exceptions
         assert not np.isnan(is_weights).any()

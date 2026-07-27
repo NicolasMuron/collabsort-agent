@@ -95,7 +95,7 @@ class Deliberator(ABC):
 
     def reset_for_phase(self, phase_steps: int) -> None:
         """Reset any phase-dependent exploration state at the start of a new phase."""
-        return None
+        return
 
     @abstractmethod
     def log_episode(self, logger: SummaryWriter, episode: int) -> None:

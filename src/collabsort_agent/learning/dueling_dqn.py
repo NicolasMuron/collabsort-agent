@@ -3,7 +3,7 @@ Dueling DQN algorithm
 """
 
 import torch
-import torch.nn as nn
+from torch import nn
 
 from collabsort_agent.learning.dqn import DQN
 
@@ -12,7 +12,7 @@ class Dueling_Network(nn.Module):
     """Dueling DQN architecture."""
 
     def __init__(self, state_size: int, action_size: int) -> None:
-        super(Dueling_Network, self).__init__()
+        super().__init__()
         self.state_size = state_size
         self.action_size = action_size
 

@@ -16,7 +16,7 @@ def demo(train_dir: str) -> None:
     """Demonstrates a previously trained agent"""
 
     if not Path(train_dir).is_dir():
-        raise Exception(f"Invalid path '{train_dir}'")
+        raise NotADirectoryError(f"Invalid path '{train_dir}'")
 
     # Load config used for training
     config = load_cfg(dir=train_dir)
@@ -43,7 +43,7 @@ def demo(train_dir: str) -> None:
         action: Action = agent.act(obs=obs, training_step=0)
 
         # Take action and observe result
-        next_obs, _, terminated, truncated, info = env.step(action=action)
+        next_obs, _, terminated, truncated, _ = env.step(action=action)
 
         # Move to next state
         obs = next_obs

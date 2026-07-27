@@ -130,7 +130,7 @@ class HeatmapTracker:
             for i in range(mat.shape[1]):
                 try:
                     labels.append(Action(i).name)
-                except Exception:
+                except ValueError:
                     labels.append(f"action_{i}")
             _log_heatmap(
                 logger=logger,
@@ -178,7 +178,7 @@ class HeatmapTracker:
 
         # 5. Spatial Action Frequencies
         if len(self.spatial_action_counts) > 0:
-            rows = sorted(list(self.spatial_action_counts.keys()))
+            rows = sorted(self.spatial_action_counts.keys())
             mat = np.zeros((len(rows), n_actions))
             for i, r in enumerate(rows):
                 row_total = sum(self.spatial_action_counts[r].values())
@@ -190,7 +190,7 @@ class HeatmapTracker:
             for i in range(n_actions):
                 try:
                     labels.append(Action(i).name)
-                except Exception:
+                except ValueError:
                     labels.append(f"action_{i}")
 
             _log_heatmap(
