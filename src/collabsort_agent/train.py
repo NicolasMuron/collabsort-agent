@@ -30,6 +30,7 @@ from collabsort_agent.learning.n_step_learning import NStepLearning
 from collabsort_agent.learning.per import PER
 from collabsort_agent.learning.q_learning import Qlearning
 from collabsort_agent.memory.memory import Memory
+from collabsort_agent.memory.stack import StackMemory
 from collabsort_agent.metacognition import Hyperparameters
 from collabsort_agent.metacognition.confidence import BayesianConfidence, GapConfidence
 from collabsort_agent.metacognition.controller import MetaController
@@ -291,6 +292,8 @@ def create_agent(config: Config, sample_obs: dict, rng: np.random.Generator) -> 
 
     if mem_type == "none":
         memory: Memory = Memory()
+    elif mem_type == "stack":
+        memory = StackMemory(config=config.memory)
     else:
         raise ValueError(f"Unrecognized memory type: {mem_type}")
 
@@ -358,6 +361,7 @@ def train(config: Config) -> None:
     for episode in trange(config.n_episodes, desc="Training progress"):
         # Reset environment and memory for new episode
         obs, _ = env.reset()
+        agent.reset()
         ep_metrics = EpisodeMetrics()
         action_history: list[int] = []
         ep_over: bool = False

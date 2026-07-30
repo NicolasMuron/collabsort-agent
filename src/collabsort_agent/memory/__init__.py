@@ -5,4 +5,4 @@ Package definition file.
 # Avoir repeating ".memory" in imports
 from collabsort_agent.memory.memory import Memory, MemoryConfig
 
-__all__ = ["Memory", "MemoryConfig"]
+__all__ = ["Memory", "MemoryAction", "MemoryConfig"]
