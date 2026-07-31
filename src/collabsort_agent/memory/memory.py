@@ -22,11 +22,17 @@ class MemoryConfig:
     """Memory configuration"""
 
     # Memory type to use
-    type: Literal["none"] = "none"
+    type: Literal["none", "stack"] = "none"
+
+    # Number of past frames to stack
+    stack_size: int = 5
 
 
 class Memory:
     """Base class for memory types"""
+
+    def reset(self) -> None:
+        """Reset memory state at the beginning of a new episode"""
 
     def get_extended_state(self, sensory_state: np.ndarray) -> np.ndarray:
         """Return extended state including sensory and memory states"""

@@ -30,6 +30,7 @@ from collabsort_agent.learning.n_step_learning import NStepLearning
 from collabsort_agent.learning.per import PER
 from collabsort_agent.learning.q_learning import Qlearning
 from collabsort_agent.memory.memory import Memory
+from collabsort_agent.memory.stack import StackMemory
 from collabsort_agent.metacognition import Hyperparameters
 from collabsort_agent.metacognition.confidence import BayesianConfidence, GapConfidence
 from collabsort_agent.metacognition.controller import MetaController
@@ -44,6 +45,9 @@ class EpisodeMetrics:
 
     # Cumulated reward
     reward: float = 0
+
+    # Optimized cumulated reward
+    optimized_reward: float = 0
 
     # Number of collisions
     collisions: int = 0
@@ -70,6 +74,17 @@ class EpisodeMetrics:
     robot_collected_objects: int = 0
     missed_objects: int = 0
 
+    optimal_action_matches: int = 0
+    optimal_matches_by_action: dict = field(
+        default_factory=lambda: {"NONE": 0, "UP": 0, "DOWN": 0, "PICK": 0}
+    )
+    optimal_action_counts: dict = field(
+        default_factory=lambda: {"NONE": 0, "UP": 0, "DOWN": 0, "PICK": 0}
+    )
+    agent_action_counts: dict = field(
+        default_factory=lambda: {"NONE": 0, "UP": 0, "DOWN": 0, "PICK": 0}
+    )
+
     def log(
         self,
         logger: SummaryWriter | None,
@@ -78,11 +93,48 @@ class EpisodeMetrics:
         """Log metrics"""
 
         if logger is not None:
-            logger.add_scalar(
-                tag="training/cumulated_reward",
-                scalar_value=self.reward,
+            logger.add_scalars(
+                main_tag="training/rewards",
+                tag_scalar_dict={
+                    "real": self.reward,
+                    "optimized": self.optimized_reward,
+                },
                 global_step=episode,
             )
+
+            if self.step > 0:
+                logger.add_scalar(
+                    tag="training/optimal_action_match_ratio",
+                    scalar_value=self.optimal_action_matches / self.step,
+                    global_step=episode,
+                )
+                if self.optimal_action_matches > 0:
+                    import matplotlib.pyplot as plt
+
+                    actions = ["NONE", "UP", "DOWN", "PICK"]
+                    executed = [self.agent_action_counts.get(a, 0) for a in actions]
+                    matched = [
+                        self.optimal_matches_by_action.get(a, 0) for a in actions
+                    ]
+
+                    fig, ax = plt.subplots(figsize=(6, 4))
+
+                    # Plot executed first (background)
+                    ax.bar(
+                        actions, executed, label="Réalisée (Total)", color="lightgray"
+                    )
+                    # Plot matched on top (foreground)
+                    ax.bar(actions, matched, label="Optimale (Succès)", color="green")
+
+                    ax.set_ylabel("Nombre")
+                    ax.set_title("Actions réalisées vs optimales")
+                    ax.legend()
+
+                    logger.add_figure(
+                        "training/actions_bar_chart", fig, global_step=episode
+                    )
+                    plt.close(fig)
+
             logger.add_scalar(
                 tag="training/collisions",
                 scalar_value=self.collisions,
@@ -240,6 +292,8 @@ def create_agent(config: Config, sample_obs: dict, rng: np.random.Generator) -> 
 
     if mem_type == "none":
         memory: Memory = Memory()
+    elif mem_type == "stack":
+        memory = StackMemory(config=config.memory)
     else:
         raise ValueError(f"Unrecognized memory type: {mem_type}")
 
@@ -307,6 +361,7 @@ def train(config: Config) -> None:
     for episode in trange(config.n_episodes, desc="Training progress"):
         # Reset environment and memory for new episode
         obs, _ = env.reset()
+        agent.reset()
         ep_metrics = EpisodeMetrics()
         action_history: list[int] = []
         ep_over: bool = False
@@ -331,6 +386,76 @@ def train(config: Config) -> None:
                 obs=obs,
                 training_step=training_step,
             )
+
+            # Compute best possible immediate reward from this state
+            if (
+                config.env.enable_reward_change
+                and training_step >= config.env.reward_change_step
+            ):
+                active_agent_rewards = config.env.agent_rewards_after
+            else:
+                active_agent_rewards = config.env.agent_rewards
+
+            agent_row = int(obs["self"]["coords"][0])
+            robot_row = int(obs["robot"][0])
+            dist = agent_row - robot_row
+
+            # Action NONE
+            reward_none = float(config.env.step_reward)
+            if dist == 1:
+                reward_none += float(config.env.collision_penalty)
+
+            # Action DOWN
+            reward_down = float(config.env.step_reward + config.env.movement_penalty)
+
+            # Action UP
+            reward_up = float(config.env.step_reward + config.env.movement_penalty)
+            if dist <= 2:
+                reward_up += float(config.env.collision_penalty)
+
+            possible_rewards = {
+                Action.NONE: reward_none,
+                Action.DOWN: reward_down,
+                Action.UP: reward_up,
+                # PICK in the void is strictly worse than NONE for stats purposes (avoids polluting the PICK match counter),
+                # but stays numerically close to NONE so it doesn't distort optimized_reward.
+                Action.PICK: reward_none - 1e-6,
+            }
+
+            # Action PICK
+            if obs["self"]["picked_object"] == 0:
+                agent_coords = obs["self"]["coords"]
+                pickable = [
+                    obj
+                    for obj in obs["moving_objects"]
+                    if obj["coords"][0] == agent_coords[0]
+                    and obj["coords"][1] == agent_coords[1]
+                ]
+                if len(pickable) == 1:
+                    obj = pickable[0]
+                    pick_val = float(active_agent_rewards[obj["color"], obj["shape"]])
+                    reward_pick = float(config.env.step_reward + pick_val)
+                    if dist == 1:
+                        reward_pick += float(config.env.collision_penalty)
+                    possible_rewards[Action.PICK] = reward_pick
+
+            best_reward = max(possible_rewards.values())
+            ep_metrics.optimized_reward += best_reward
+
+            # Find which actions were optimal
+            best_actions = [
+                act for act, rew in possible_rewards.items() if rew == best_reward
+            ]
+            for act in best_actions:
+                ep_metrics.optimal_action_counts[act.name] += 1
+
+            # Track if agent's action was optimal
+            # Since action could be an integer or Action enum due to act() return type
+            act_enum = Action(action)
+            ep_metrics.agent_action_counts[act_enum.name] += 1
+            if act_enum in best_actions:
+                ep_metrics.optimal_action_matches += 1
+                ep_metrics.optimal_matches_by_action[act_enum.name] += 1
 
             # Count oscillations (UP/DOWN direction changes)
             current_action_str = action.name
