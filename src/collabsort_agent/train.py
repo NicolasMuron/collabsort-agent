@@ -361,7 +361,6 @@ def train(config: Config) -> None:
     for episode in trange(config.n_episodes, desc="Training progress"):
         # Reset environment and memory for new episode
         obs, _ = env.reset()
-        agent.reset()
         ep_metrics = EpisodeMetrics()
         action_history: list[int] = []
         ep_over: bool = False

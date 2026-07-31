@@ -150,13 +150,13 @@ def train_curriculum(base_config: Config, phases: list[CurriculumPhase]) -> None
 
         # Create the environment for this specific phase
         env = gym.make("CollabSort-v0", config=phase.env_config)
+        agent.reset()
 
         # Loop over episodes for this phase
         phase_training_step = 0
         for _ in trange(phase.n_episodes, desc=f"Training Phase {phase_idx + 1}"):
             # Reset environment and memory for new episode
             obs, _ = env.reset()
-            agent.reset()
             ep_metrics = EpisodeMetrics()
             action_history: list[int] = []
             ep_over: bool = False
