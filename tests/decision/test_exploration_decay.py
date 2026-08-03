@@ -96,7 +96,12 @@ def test_exponential_explo_decay() -> None:
 def test_epsilon_greedy_keeps_decay_by_default() -> None:
     """By default, the deliberator should not reset exploration on a new phase."""
 
-    config = DecisionConfig(epsilon_start=0.9, epsilon_min=0.1, decay_span=0.5)
+    config = DecisionConfig(
+        epsilon_start=0.9,
+        epsilon_min=0.1,
+        decay_span=0.5,
+        reset_exploration_per_phase=False,
+    )
     deliberator = EpsilonGreedy(
         config=config,
         estimator=EstimatorStub(),
