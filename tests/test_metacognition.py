@@ -13,6 +13,7 @@ from collabsort_agent.learning import LearningConfig
 from collabsort_agent.metacognition import Hyperparameters, MetaConfig
 from collabsort_agent.metacognition.confidence import BayesianConfidence, GapConfidence
 from collabsort_agent.metacognition.controller import MetaController
+from collabsort_agent.metacognition.monitoring import MetaMonitoring
 
 
 class LoggerStub:
@@ -173,31 +174,127 @@ class TestBayesianConfidence:
         assert abs(confidence - 0.5) < 1e-6
 
 
-class TestMetaController:
+class TestMetaMonitoring:
     def test_confidence_ema_warm_starts_at_target(self) -> None:
         """The confidence EMA should warm-start at the configured target"""
 
-        meta_ctrl = self._make_controller(config=MetaConfig(confidence_target=0.6))
+        meta_monitoring = self._make_monitoring(
+            config=MetaConfig(confidence_target=0.6)
+        )
 
-        assert meta_ctrl.confidence_ema == 0.6
+        assert meta_monitoring.confidence_ema == 0.6
 
-    def test_update_hyperparameters_smooths_confidence_with_ema(self) -> None:
+    def test_compute_decision_confidence_smooths_with_ema(self) -> None:
         """Confidence should be smoothed via EMA rather than used raw"""
 
         config = MetaConfig(confidence_target=0.75, ema_decay=0.5)
-        meta_ctrl = self._make_controller(config=config)
+        meta_monitoring = self._make_monitoring(config=config)
 
-        meta_ctrl.update_hyperparameters(confidence=0.0, reaction_time=0.0)
+        # Gap confidence with theta=1.0: (min_evidence[chosen] - min_evidence[runnerup]) / theta
+        zero_confidence = _make_accumulators(
+            drift_rates=[0.0, 0.0], evidence=[0.5, 0.5]
+        )
+        full_confidence = _make_accumulators(
+            drift_rates=[0.0, 0.0], evidence=[0.0, 1.0]
+        )
+
+        ema = meta_monitoring.compute_decision_confidence(
+            chosen_action=1,
+            runnerup_action=0,
+            reaction_time=10.0,
+            accumulators=zero_confidence,
+        )
         # ema = 0.5*0.75 + 0.5*0.0 = 0.375
-        assert abs(meta_ctrl.confidence_ema - 0.375) < 1e-9
+        assert abs(ema - 0.375) < 1e-9
+        assert abs(meta_monitoring.confidence_ema - 0.375) < 1e-9
 
-        meta_ctrl.update_hyperparameters(confidence=1.0, reaction_time=0.0)
+        ema = meta_monitoring.compute_decision_confidence(
+            chosen_action=1,
+            runnerup_action=0,
+            reaction_time=10.0,
+            accumulators=full_confidence,
+        )
         # ema = 0.5*0.375 + 0.5*1.0 = 0.6875
-        assert abs(meta_ctrl.confidence_ema - 0.6875) < 1e-9
+        assert abs(ema - 0.6875) < 1e-6
+        assert abs(meta_monitoring.confidence_ema - 0.6875) < 1e-6
 
-        # Each smoothed value should be recorded for later episode logging
-        assert meta_ctrl.confidences == [0.375, 0.6875]
+    def test_compute_decision_confidence_records_value(self) -> None:
+        """Each computed confidence should be appended right after computation"""
 
+        meta_monitoring = self._make_monitoring()
+        accumulators = _make_accumulators(drift_rates=[0.0, 0.0], evidence=[0.7, 1.0])
+
+        meta_monitoring.compute_decision_confidence(
+            chosen_action=1,
+            runnerup_action=0,
+            reaction_time=10.0,
+            accumulators=accumulators,
+        )
+        assert len(meta_monitoring.confidences) == 1
+
+        meta_monitoring.compute_decision_confidence(
+            chosen_action=1,
+            runnerup_action=0,
+            reaction_time=10.0,
+            accumulators=accumulators,
+        )
+        assert len(meta_monitoring.confidences) == 2
+
+    def test_log_episode_logs_mean_confidence_and_resets(self) -> None:
+        """log_episode() should log the mean of the episode's confidence values and clear them"""
+
+        meta_monitoring = self._make_monitoring()
+        accumulators = _make_accumulators(drift_rates=[0.0, 0.0], evidence=[0.7, 1.0])
+
+        meta_monitoring.compute_decision_confidence(
+            chosen_action=1,
+            runnerup_action=0,
+            reaction_time=10.0,
+            accumulators=accumulators,
+        )
+        meta_monitoring.compute_decision_confidence(
+            chosen_action=1,
+            runnerup_action=0,
+            reaction_time=10.0,
+            accumulators=accumulators,
+        )
+        expected_mean_confidence = sum(meta_monitoring.confidences) / 2
+
+        logger = LoggerStub()
+        meta_monitoring.log_episode(logger=logger.as_summary_writer(), episode=3)
+
+        assert len(logger.scalars) == 1
+        tag, mean_confidence, episode = logger.scalars[0]
+        assert tag == "metacognition/mean_confidence"
+        assert abs(mean_confidence - expected_mean_confidence) < 1e-9
+        assert episode == 3
+        # Episode data should be reset after logging
+        assert meta_monitoring.confidences == []
+
+    def test_log_episode_is_noop_when_no_confidences_recorded(self) -> None:
+        """log_episode() should not log anything if no decision was made this episode"""
+
+        meta_monitoring = self._make_monitoring()
+
+        logger = LoggerStub()
+        meta_monitoring.log_episode(logger=logger.as_summary_writer(), episode=0)
+
+        assert logger.scalars == []
+
+    def _make_monitoring(self, config: MetaConfig | None = None) -> MetaMonitoring:
+        decision_cfg = DecisionConfig(theta_start=1.0)
+        hyperparameters = Hyperparameters(
+            decision_cfg=decision_cfg, learning_cfg=LearningConfig()
+        )
+        return MetaMonitoring(
+            config=config or MetaConfig(),
+            confidence_method=GapConfidence(
+                decision_cfg=decision_cfg, hyperparameters=hyperparameters
+            ),
+        )
+
+
+class TestMetaController:
     def test_underconfidence_grows_theta_and_raises_alpha(self) -> None:
         """
         Below-target confidence should widen the decision threshold (more
@@ -277,34 +374,6 @@ class TestMetaController:
         )
         high_meta_ctrl.update_hyperparameters(confidence=0.0, reaction_time=0.0)
         assert high_meta_ctrl.hyperparameters.alpha == learning_cfg.alpha_max
-
-    def test_log_episode_logs_mean_confidence_and_resets(self) -> None:
-        """log_episode() should log the mean of the episode's confidence values and clear them"""
-
-        meta_ctrl = self._make_controller(config=MetaConfig(ema_decay=0.0))
-        meta_ctrl.update_hyperparameters(confidence=0.4, reaction_time=0.0)
-        meta_ctrl.update_hyperparameters(confidence=0.8, reaction_time=0.0)
-
-        logger = LoggerStub()
-        meta_ctrl.log_episode(logger=logger.as_summary_writer(), episode=3)
-
-        assert len(logger.scalars) == 1
-        tag, mean_confidence, episode = logger.scalars[0]
-        assert tag == "metacognition/mean_confidence"
-        assert abs(mean_confidence - 0.6) < 1e-9
-        assert episode == 3
-        # Episode data should be reset after logging
-        assert meta_ctrl.confidences == []
-
-    def test_log_episode_is_noop_when_no_confidences_recorded(self) -> None:
-        """log_episode() should not log anything if no decision was made this episode"""
-
-        meta_ctrl = self._make_controller()
-
-        logger = LoggerStub()
-        meta_ctrl.log_episode(logger=logger.as_summary_writer(), episode=0)
-
-        assert logger.scalars == []
 
     def _make_controller(
         self,

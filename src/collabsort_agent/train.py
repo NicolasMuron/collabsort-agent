@@ -260,7 +260,9 @@ def _build_deliberator(
             raise ValueError(
                 f"Unrecognized confidence method: {config.meta.confidence_method}"
             )
-        meta_monitoring = MetaMonitoring(confidence_method=confidence_method)
+        meta_monitoring = MetaMonitoring(
+            config=config.meta, confidence_method=confidence_method
+        )
 
         return ARD(
             config=config.decision,

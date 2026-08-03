@@ -174,7 +174,7 @@ class ARD(Deliberator):
             scalar_value=self.hyperparameters.theta,
             global_step=episode,
         )
-        self.meta_ctrl.log_episode(logger=logger, episode=episode)
+        self.meta_monitoring.log_episode(logger=logger, episode=episode)
 
     def save_state(self, dir: str) -> None:
         # TODO save state for ARD

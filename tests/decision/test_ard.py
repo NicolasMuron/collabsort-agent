@@ -147,9 +147,10 @@ class TestARD:
             decision_cfg=config, learning_cfg=learning_cfg
         )
         meta_monitoring = MetaMonitoring(
+            config=MetaConfig(),
             confidence_method=BayesianConfidence(
                 decision_cfg=config, hyperparameters=hyperparameters
-            )
+            ),
         )
         meta_stub = MetaStub(decision_cfg=config, hyperparameters=hyperparameters)
         ard = ARD(
