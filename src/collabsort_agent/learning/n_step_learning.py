@@ -2,8 +2,6 @@
 N-step learning algorithm
 """
 
-import random
-
 import numpy as np
 import torch
 
@@ -51,8 +49,8 @@ class NStepLearning(DQN):
             [self.n_step_buffer[i][2] * (self.config.gamma**i) for i in range(actual_n)]
         )
 
-        # Store the data directly in the UniformReplayBuffer's deque.
-        self.replay_buffer.buffer.append(
+        # Store the 6-element (with actual_n) tuple directly in the replay buffer.
+        self.replay_buffer.add_raw(
             (state_0, action_0, R, next_state_n, done_n, actual_n)
         )
 
@@ -64,8 +62,8 @@ class NStepLearning(DQN):
         if len(self.replay_buffer) < self.config.batch_size:
             return
 
-        # Manual sampling from the deque to retrieve our 6-element tuples
-        batch = random.sample(self.replay_buffer.buffer, self.config.batch_size)
+        # Sampling to retrieve our 6-element tuples
+        batch = self.replay_buffer.sample_raw(self.config.batch_size)
         states, actions, rewards, next_states, dones, actual_ns = zip(
             *batch, strict=True
         )

@@ -3,7 +3,6 @@ Deep Q-Learning algorithm.
 """
 
 import random
-from collections import deque
 from pathlib import Path
 from typing import cast
 
@@ -53,16 +52,36 @@ class QNetwork(nn.Module):
 
 
 class UniformReplayBuffer:
-    """Classic replay buffer with uniform sampling (FIFO)."""
+    """Classic replay buffer with uniform sampling (FIFO).
+
+    Backed by a preallocated circular list rather than a deque: sampling a
+    batch needs random access by index, and list indexing is O(1) while
+    deque indexing is O(n) (distance to the nearest end), which made
+    sampling increasingly expensive as the buffer filled up.
+    """
 
     def __init__(self, capacity: int):
-        self.buffer = deque(maxlen=capacity)
+        self.capacity = capacity
+        self.buffer: list = [None] * capacity
+        self._position = 0
+        self._size = 0
 
     def add(self, state, action, reward, next_state, done):
-        self.buffer.append((state, action, reward, next_state, done))
+        self.add_raw((state, action, reward, next_state, done))
+
+    def add_raw(self, transition: tuple) -> None:
+        """Store a pre-built transition tuple (e.g. n-step learning's 6-tuple)."""
+        self.buffer[self._position] = transition
+        self._position = (self._position + 1) % self.capacity
+        self._size = min(self._size + 1, self.capacity)
+
+    def sample_raw(self, batch_size: int) -> list:
+        """Return a list of raw sampled transition tuples."""
+        indices = random.sample(range(self._size), batch_size)
+        return [self.buffer[i] for i in indices]
 
     def sample(self, batch_size: int):
-        minibatch = random.sample(self.buffer, batch_size)
+        minibatch = self.sample_raw(batch_size)
         states, actions, rewards, next_states, dones = zip(*minibatch, strict=True)
         states = np.array(states, dtype=np.float32)
         actions = np.array(actions, dtype=np.int64)
@@ -73,7 +92,7 @@ class UniformReplayBuffer:
         return (states, actions, rewards, next_states, dones), None, None
 
     def __len__(self):
-        return len(self.buffer)
+        return self._size
 
 
 class DQN(ActionValueEstimator):
