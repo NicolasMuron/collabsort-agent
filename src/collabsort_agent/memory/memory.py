@@ -22,10 +22,10 @@ class MemoryConfig:
     """Memory configuration"""
 
     # Memory type to use
-    type: Literal["none", "stack"] = "none"
+    type: Literal["none", "history"] = "none"
 
-    # Number of past frames to stack
-    stack_size: int = 5
+    # Number of past transitions to keep in memory.
+    history_size: int = 5
 
 
 class Memory:
@@ -39,6 +39,12 @@ class Memory:
 
         # No extension: extended state = sensory state
         return sensory_state
+
+    def store_transition(
+        self, sensory_state: np.ndarray, action: int, reward: float
+    ) -> None:
+        """Optional hook for memories that store past transitions."""
+        return
 
     def get_actions(self) -> list[MemoryAction]:
         """Return the number of memory actions"""

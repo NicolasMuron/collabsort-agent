@@ -10,14 +10,14 @@ from collabsort_agent.perception import Perceiver, PerceptionConfig
 
 
 def make_perceiver(
-    n_perceived_cols: int = 3, n_objects: int = 1, cone_perception: bool = False
+    n_future_cols: int = 3, n_objects: int = 1, cone_perception: bool = False
 ) -> tuple[Perceiver, EnvConfig]:
     """Helper function to create a Perceiver object."""
 
     env_config = EnvConfig(n_objects=n_objects)
     perceiver = Perceiver(
         config=PerceptionConfig(
-            n_perceived_cols=n_perceived_cols, cone_perception=cone_perception
+            n_future_cols=n_future_cols, cone_perception=cone_perception
         ),
         treadmill_rows=env_config.treadmill_rows,
         upper_treadmill_row=env_config.upper_treadmill_row,
@@ -37,9 +37,9 @@ def sample_obs(env_config: EnvConfig) -> dict:
 
 def test_perceiver_state_size() -> None:
     for cone_mode in (False, True):
-        for n_perceived_cols in (1, 2, 3, 4, 5, 6):
+        for n_future_cols in (1, 2, 3, 4, 5, 6):
             perceiver, env_config = make_perceiver(
-                n_perceived_cols=n_perceived_cols, cone_perception=cone_mode
+                n_future_cols=n_future_cols, cone_perception=cone_mode
             )
             obs = sample_obs(env_config=env_config)
 
@@ -51,13 +51,13 @@ def test_perceiver_state_size() -> None:
             for row in perceiver.treadmill_rows:
                 if cone_mode:
                     if row == env_config.upper_treadmill_row:
-                        total_cols += n_perceived_cols + 2
+                        total_cols += n_future_cols + 2
                     elif row == env_config.middle_treadmill_row:
-                        total_cols += n_perceived_cols + 1
+                        total_cols += n_future_cols + 1
                     else:
-                        total_cols += n_perceived_cols
+                        total_cols += n_future_cols
                 else:
-                    total_cols += n_perceived_cols
+                    total_cols += n_future_cols
 
             expected_len = 3 + 2 + (total_cols * 3)
             assert len(sensory_state) == expected_len

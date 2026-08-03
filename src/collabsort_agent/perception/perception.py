@@ -11,8 +11,8 @@ import numpy as np
 class PerceptionConfig:
     """Perception configuration."""
 
-    # Number of perceived columns in an observation
-    n_perceived_cols: int = 3
+    # Number of future columns visible in an observation
+    n_future_cols: int = 3
     # Enable 45-degree cone vision (more columns on upper rows)
     cone_perception: bool = False
 
@@ -36,15 +36,15 @@ class Perceiver:
         """Return how many columns are visible for a treadmill row."""
 
         if not self.config.cone_perception:
-            return self.config.n_perceived_cols
+            return self.config.n_future_cols
 
         if self.upper_treadmill_row is not None and row == self.upper_treadmill_row:
-            return self.config.n_perceived_cols + 2
+            return self.config.n_future_cols + 2
 
         if self.middle_treadmill_row is not None and row == self.middle_treadmill_row:
-            return self.config.n_perceived_cols + 1
+            return self.config.n_future_cols + 1
 
-        return self.config.n_perceived_cols
+        return self.config.n_future_cols
 
     def get_sensory_state(self, obs: dict) -> np.ndarray:
         """Flatten an observation into a vector: the sensory state"""

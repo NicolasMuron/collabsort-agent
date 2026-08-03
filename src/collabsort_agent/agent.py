@@ -24,11 +24,15 @@ class Agent:
         # Current extended state (sensory + memory)
         self.current_extended_state: np.ndarray | None = None
 
+        # Current sensory state (without memory extension)
+        self.current_sensory_state: np.ndarray | None = None
+
         # Newest action chosen by the agent
         self.current_action: Action | None = None
 
         # Cached next state to prevent double-updating memory modules
         self.next_extended_state: np.ndarray | None = None
+        self.next_sensory_state: np.ndarray | None = None
 
     def reset(self) -> None:
         """Reset agent state at the beginning of a new episode"""
@@ -47,9 +51,12 @@ class Agent:
 
         if self.next_extended_state is not None:
             extended_state = self.next_extended_state
+            self.current_sensory_state = self.next_sensory_state
             self.next_extended_state = None
+            self.next_sensory_state = None
         else:
             sensory_state = self.perceiver.get_sensory_state(obs=obs)
+            self.current_sensory_state = sensory_state
             extended_state = self.memory.get_extended_state(sensory_state=sensory_state)
 
         self.current_extended_state = extended_state
@@ -83,7 +90,18 @@ class Agent:
             done=done,
         )
 
+        if (
+            hasattr(self.memory, "store_transition")
+            and self.current_sensory_state is not None
+        ):
+            self.memory.store_transition(
+                sensory_state=self.current_sensory_state,
+                action=self.current_action.value,
+                reward=reward,
+            )
+
         self.next_extended_state = next_extended_state
+        self.next_sensory_state = next_sensory_state
 
     def log_episode(self, logger: SummaryWriter | None, episode: int) -> None:
         """Log agent information after an episode"""

@@ -29,8 +29,8 @@ from collabsort_agent.learning.dueling_dqn import DuelingDQN
 from collabsort_agent.learning.n_step_learning import NStepLearning
 from collabsort_agent.learning.per import PER
 from collabsort_agent.learning.q_learning import Qlearning
+from collabsort_agent.memory.history_memory import HistoryMemory
 from collabsort_agent.memory.memory import Memory
-from collabsort_agent.memory.stack import StackMemory
 from collabsort_agent.metacognition import Hyperparameters
 from collabsort_agent.metacognition.confidence import BayesianConfidence, GapConfidence
 from collabsort_agent.metacognition.controller import MetaController
@@ -294,8 +294,8 @@ def create_agent(config: Config, sample_obs: dict, rng: np.random.Generator) -> 
 
     if mem_type == "none":
         memory: Memory = Memory()
-    elif mem_type == "stack":
-        memory = StackMemory(config=config.memory)
+    elif mem_type == "history":
+        memory = HistoryMemory(config=config.memory)
     else:
         raise ValueError(f"Unrecognized memory type: {mem_type}")
 
