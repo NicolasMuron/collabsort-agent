@@ -57,9 +57,14 @@ class ARD(Deliberator):
         if n_actions == 1:
             return 0  # Only one possible action
 
-        # Reset evidence and history
+        # Reset evidence and history.
+        # History is preallocated for max_steps columns and trimmed to the
+        # actual decision length below, to avoid reallocating/copying the
+        # whole array at each accumulation step.
         self.accumulators.evidence = self.accumulators.empty_evidence()
-        self.accumulators.evidence_history = self.accumulators.empty_evidence()
+        self.accumulators.evidence_history = np.zeros(
+            (self.accumulators.n_accumulators, self.config.max_steps), dtype=float
+        )
 
         # Compute drift rates for all accumulators
         drift_rates = self._compute_drift_rates(action_values)
@@ -89,9 +94,7 @@ class ARD(Deliberator):
             )
 
             # Add new evidence to history
-            self.accumulators.evidence_history = np.c_[
-                self.accumulators.evidence_history, self.accumulators.evidence
-            ]
+            self.accumulators.evidence_history[:, t - 1] = self.accumulators.evidence
 
             winning_actions = self.decision_rule.get_winning_actions(
                 n_actions=n_actions,
@@ -115,6 +118,11 @@ class ARD(Deliberator):
 
                 rt = float(t)
                 break
+
+        # Trim history to the actual number of accumulation steps taken
+        self.accumulators.evidence_history = self.accumulators.evidence_history[
+            :, : int(rt)
+        ]
 
         min_actions_evidence = self.accumulators.min_evidence(
             actions=list(range(n_actions))
