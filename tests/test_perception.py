@@ -10,14 +10,19 @@ from collabsort_agent.perception import Perceiver, PerceptionConfig
 
 
 def make_perceiver(
-    n_future_cols: int = 3, n_objects: int = 1, cone_perception: bool = False
+    n_future_cols: int = 3,
+    n_past_cols: int = 0,
+    n_objects: int = 1,
+    cone_perception: bool = False,
 ) -> tuple[Perceiver, EnvConfig]:
     """Helper function to create a Perceiver object."""
 
     env_config = EnvConfig(n_objects=n_objects)
     perceiver = Perceiver(
         config=PerceptionConfig(
-            n_future_cols=n_future_cols, cone_perception=cone_perception
+            n_future_cols=n_future_cols,
+            n_past_cols=n_past_cols,
+            cone_perception=cone_perception,
         ),
         treadmill_rows=env_config.treadmill_rows,
         upper_treadmill_row=env_config.upper_treadmill_row,

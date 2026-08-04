@@ -24,8 +24,11 @@ class Agent:
         # Current extended state (sensory + memory)
         self.current_extended_state: np.ndarray | None = None
 
-        # Current sensory state (without memory extension)
+        # Current future sensory state (without memory extension)
         self.current_sensory_state: np.ndarray | None = None
+        self.current_past_state: np.ndarray | None = None
+        self.current_agent_position: tuple[int, int] | None = None
+        self.current_robot_position: tuple[int, int] | None = None
 
         # Newest action chosen by the agent
         self.current_action: Action | None = None
@@ -33,14 +36,25 @@ class Agent:
         # Cached next state to prevent double-updating memory modules
         self.next_extended_state: np.ndarray | None = None
         self.next_sensory_state: np.ndarray | None = None
+        self.next_past_state: np.ndarray | None = None
+        self.next_agent_position: tuple[int, int] | None = None
+        self.next_robot_position: tuple[int, int] | None = None
 
     def reset(self) -> None:
         """Reset agent state at the beginning of a new episode"""
 
         self.memory.reset()
         self.current_extended_state = None
+        self.current_sensory_state = None
+        self.current_past_state = None
+        self.current_agent_position = None
+        self.current_robot_position = None
         self.current_action = None
         self.next_extended_state = None
+        self.next_sensory_state = None
+        self.next_past_state = None
+        self.next_agent_position = None
+        self.next_robot_position = None
 
     def act(
         self,
@@ -52,12 +66,22 @@ class Agent:
         if self.next_extended_state is not None:
             extended_state = self.next_extended_state
             self.current_sensory_state = self.next_sensory_state
+            self.current_past_state = self.next_past_state
+            self.current_agent_position = self.next_agent_position
+            self.current_robot_position = self.next_robot_position
             self.next_extended_state = None
             self.next_sensory_state = None
+            self.next_past_state = None
+            self.next_agent_position = None
+            self.next_robot_position = None
         else:
-            sensory_state = self.perceiver.get_sensory_state(obs=obs)
-            self.current_sensory_state = sensory_state
-            extended_state = self.memory.get_extended_state(sensory_state=sensory_state)
+            future_state = self.perceiver.get_sensory_state(obs=obs)
+            past_state = self.perceiver.get_past_state(obs=obs)
+            self.current_sensory_state = future_state
+            self.current_past_state = past_state
+            self.current_agent_position = tuple(obs["self"]["coords"])
+            self.current_robot_position = tuple(obs["robot"])
+            extended_state = self.memory.get_extended_state(sensory_state=future_state)
 
         self.current_extended_state = extended_state
 
@@ -72,11 +96,26 @@ class Agent:
     def update(self, next_obs: dict, reward: float, done: bool) -> None:
         """Update agent after an action"""
 
-        if self.current_extended_state is None or not self.current_action:
+        if self.current_extended_state is None or self.current_action is None:
             raise RuntimeError("Trying to update agent with non-existent state")
 
-        # Compute next extended state (sensory + memory) for the transition
+        # Compute next sensory state first, then update memory with the current transition.
         next_sensory_state = self.perceiver.get_sensory_state(obs=next_obs)
+
+        if (
+            hasattr(self.memory, "store_transition")
+            and self.current_past_state is not None
+            and self.current_agent_position is not None
+            and self.current_robot_position is not None
+        ):
+            self.memory.store_transition(
+                past_state=self.current_past_state,
+                action=self.current_action.value,
+                reward=reward,
+                agent_position=self.current_agent_position,
+                robot_position=self.current_robot_position,
+            )
+
         next_extended_state = self.memory.get_extended_state(
             sensory_state=next_sensory_state
         )
@@ -90,18 +129,11 @@ class Agent:
             done=done,
         )
 
-        if (
-            hasattr(self.memory, "store_transition")
-            and self.current_sensory_state is not None
-        ):
-            self.memory.store_transition(
-                sensory_state=self.current_sensory_state,
-                action=self.current_action.value,
-                reward=reward,
-            )
-
         self.next_extended_state = next_extended_state
         self.next_sensory_state = next_sensory_state
+        self.next_past_state = self.perceiver.get_past_state(obs=next_obs)
+        self.next_agent_position = tuple(next_obs["self"]["coords"])
+        self.next_robot_position = tuple(next_obs["robot"])
 
     def log_episode(self, logger: SummaryWriter | None, episode: int) -> None:
         """Log agent information after an episode"""

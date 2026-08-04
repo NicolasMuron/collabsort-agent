@@ -300,7 +300,8 @@ def create_agent(config: Config, sample_obs: dict, rng: np.random.Generator) -> 
         raise ValueError(f"Unrecognized memory type: {mem_type}")
 
     sample_extended_state = memory.get_extended_state(
-        sensory_state=sample_sensory_state
+        sensory_state=sample_sensory_state,
+        expected_past_state_size=len(perceiver.get_past_state(obs=sample_obs)),
     )
 
     # Initialize metacognition & dimensions

@@ -7,60 +7,92 @@ from collections import deque
 import numpy as np
 
 from collabsort_agent.memory import MemoryConfig
-from collabsort_agent.memory.memory import Memory, MemoryAction
+from collabsort_agent.memory.memory import Memory
 
 
 class HistoryMemory(Memory):
-    """Historical memory storing past sensory states, actions and rewards.
+    """Historical memory storing past sensory states, actions, rewards, and positions.
 
-    The extended state is composed of the current sensory state followed by
-    the last ``history_size`` transition blocks. Each block contains the
-    previous sensory state, the executed agent action and the received reward.
+    The extended state is composed of the current future sensory state followed by
+    the last ``history_size`` transition blocks. Each block contains the past state
+    for the left-side columns, the agent action, the agent reward, the agent position,
+    and the robot position.
     """
 
     def __init__(self, config: MemoryConfig) -> None:
         self.history_size = config.history_size
-        self._buffer: deque[tuple[np.ndarray, float, float]] = deque(
-            maxlen=self.history_size
+        self._buffer: deque[tuple[np.ndarray, float, float, np.ndarray, np.ndarray]] = (
+            deque(maxlen=self.history_size)
         )
-        self._state_size: int | None = None
+        self._past_state_size: int | None = None
 
     def reset(self) -> None:
         """Clear all stored history at the start of a new episode."""
         self._buffer.clear()
-        self._state_size = None
+        self._past_state_size = None
 
-    def get_extended_state(self, sensory_state: np.ndarray) -> np.ndarray:
+    def get_extended_state(
+        self,
+        sensory_state: np.ndarray,
+        expected_past_state_size: int | None = None,
+    ) -> np.ndarray:
         """Return the current sensory state extended with recent past transitions."""
-        if self._state_size is None:
-            self._state_size = len(sensory_state)
+        if self._past_state_size is None:
+            if expected_past_state_size is not None:
+                self._past_state_size = expected_past_state_size
+            elif self._buffer:
+                self._past_state_size = len(self._buffer[0][0])
 
-        block_size = self._state_size + 2
+        if self._past_state_size is None:
+            return sensory_state
+
+        block_size = self._past_state_size + 2 + 4
         zero_block = np.zeros(block_size, dtype=np.float32)
 
         past_blocks: list[np.ndarray] = []
-        for stored_state, action, reward in reversed(self._buffer):
+        for (
+            stored_state,
+            action,
+            reward,
+            agent_position,
+            robot_position,
+        ) in reversed(self._buffer):
             past_blocks.append(stored_state)
-            past_blocks.append(np.array([action, reward], dtype=np.float32))
-
-        padding = [zero_block] * (self.history_size - len(self._buffer))
-        if past_blocks:
-            past_array = np.concatenate(past_blocks + padding)
-        else:
-            past_array = (
-                np.concatenate(padding) if padding else np.array([], dtype=np.float32)
+            past_blocks.append(
+                np.array(
+                    [
+                        action,
+                        reward,
+                        *agent_position.tolist(),
+                        *robot_position.tolist(),
+                    ],
+                    dtype=np.float32,
+                )
             )
 
+        past_array = np.concatenate(
+            past_blocks + [zero_block] * (self.history_size - len(self._buffer))
+        )
         return np.concatenate([sensory_state, past_array])
 
     def store_transition(
-        self, sensory_state: np.ndarray, action: int, reward: float
+        self,
+        past_state: np.ndarray,
+        action: int,
+        reward: float,
+        agent_position: tuple[int, int],
+        robot_position: tuple[int, int],
     ) -> None:
         """Store a past transition for future extended-state construction."""
-        if self._state_size is None:
-            self._state_size = len(sensory_state)
+        if self._past_state_size is None:
+            self._past_state_size = len(past_state)
 
-        self._buffer.append((sensory_state.copy(), float(action), float(reward)))
-
-    def get_actions(self) -> list[MemoryAction]:
-        return []
+        self._buffer.append(
+            (
+                past_state.copy(),
+                float(action),
+                float(reward),
+                np.array(agent_position, dtype=np.float32),
+                np.array(robot_position, dtype=np.float32),
+            )
+        )

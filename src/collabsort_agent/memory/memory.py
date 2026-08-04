@@ -25,7 +25,7 @@ class MemoryConfig:
     type: Literal["none", "history"] = "none"
 
     # Number of past transitions to keep in memory.
-    history_size: int = 5
+    history_size: int = 2
 
 
 class Memory:
@@ -34,15 +34,17 @@ class Memory:
     def reset(self) -> None:
         """Reset memory state at the beginning of a new episode"""
 
-    def get_extended_state(self, sensory_state: np.ndarray) -> np.ndarray:
+    def get_extended_state(
+        self,
+        sensory_state: np.ndarray,
+        expected_past_state_size: int | None = None,
+    ) -> np.ndarray:
         """Return extended state including sensory and memory states"""
 
         # No extension: extended state = sensory state
         return sensory_state
 
-    def store_transition(
-        self, sensory_state: np.ndarray, action: int, reward: float
-    ) -> None:
+    def store_transition(self, *args, **kwargs) -> None:
         """Optional hook for memories that store past transitions."""
         return
 
