@@ -4,7 +4,6 @@ Unit tests for curriculum training.
 
 import json
 
-import gymnasium as gym
 from gym_collabsort.config import Config as EnvConfig
 
 from collabsort_agent.config import Config
@@ -13,7 +12,6 @@ from collabsort_agent.learning import LearningConfig
 from collabsort_agent.memory import MemoryConfig
 from collabsort_agent.metacognition import MetaConfig
 from collabsort_agent.perception import PerceptionConfig
-from collabsort_agent.train import create_agent
 from collabsort_agent.train_curriculum import (
     CurriculumPhase,
     compute_total_training_steps,
@@ -84,58 +82,4 @@ def test_train_curriculum(tmp_path) -> None:
     assert phases[1].env_config.reward_noise_std == 0.5
 
     # Run the curriculum training loop (if it crashes, the test fails)
-    train_curriculum(base_config=cfg, phases=phases, pretrained_state_dir=None)
-
-
-def test_train_curriculum_with_pretrained_state(tmp_path) -> None:
-    """Test curriculum training resumes from a pretrained agent state."""
-
-    json_path = tmp_path / "dummy_curriculum.json"
-    dummy_phases = [
-        {
-            "name": "Phase 1 - Easy",
-            "n_episodes": 1,
-            "env_overrides": {"robot_enabled": False, "active_treadmills": ["upper"]},
-        },
-        {
-            "name": "Phase 2 - Hard",
-            "n_episodes": 1,
-            "env_overrides": {
-                "robot_enabled": True,
-                "reward_noise_std": 0.5,
-                "active_treadmills": ["upper", "lower"],
-            },
-        },
-    ]
-
-    with open(json_path, "w", encoding="utf-8") as f:
-        json.dump(dummy_phases, f)
-
-    cfg = Config(
-        env=EnvConfig(),
-        perception=PerceptionConfig(),
-        memory=MemoryConfig(),
-        decision=DecisionConfig(epsilon_start=1, epsilon_min=1),
-        learning=LearningConfig(),
-        meta=MetaConfig(),
-        n_episodes=1,
-        n_steps_episode=10,
-        log_events=False,
-        save_state=False,
-    )
-
-    phases = load_curriculum_from_json(base_config=cfg, json_path=str(json_path))
-
-    env = gym.make("CollabSort-v0", config=cfg.env)
-    agent = create_agent(
-        config=cfg, sample_obs=env.observation_space.sample(), rng=env.np_random
-    )
-    pretrained_dir = tmp_path / "pretrained"
-    agent.save_state(dir=str(pretrained_dir))
-    env.close()
-
-    train_curriculum(
-        base_config=cfg,
-        phases=phases,
-        pretrained_state_dir=str(pretrained_dir),
-    )
+    train_curriculum(base_config=cfg, phases=phases)

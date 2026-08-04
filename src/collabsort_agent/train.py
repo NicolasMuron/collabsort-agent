@@ -332,7 +332,15 @@ def create_agent(config: Config, sample_obs: dict, rng: np.random.Generator) -> 
     return Agent(perceiver=perceiver, memory=memory, deliberator=deliberator)
 
 
-def train(config: Config) -> None:
+@dataclass
+class TrainArgs:
+    """Arguments for training."""
+
+    config: Config
+    pretrained_state_dir: str | None = None
+
+
+def train(config: Config, pretrained_state_dir: str | None = None) -> None:
     """Train an agent"""
 
     # Allow PyTorch to use TF32 (tensor float 32) on Ampere+ GPUs.
@@ -352,6 +360,10 @@ def train(config: Config) -> None:
     agent = create_agent(
         config=config, sample_obs=env.observation_space.sample(), rng=env.np_random
     )
+
+    if pretrained_state_dir is not None:
+        print(f"Loading pretrained state from {pretrained_state_dir}...")
+        agent.load_state(dir=pretrained_state_dir)
 
     # Training time step (= number of time steps since beginning of training)
     training_step: int = 0
@@ -550,6 +562,6 @@ def train(config: Config) -> None:
 
 if __name__ == "__main__":  # pragma: no cover
     # Create training configuration from command line args
-    config: Config = tyro.cli(Config)
+    args: TrainArgs = tyro.cli(TrainArgs)
 
-    train(config=config)
+    train(config=args.config, pretrained_state_dir=args.pretrained_state_dir)
