@@ -41,6 +41,9 @@ class CurriculumArgs:
     # Path to the curriculum JSON file
     curriculum_file: str = "curriculum.json"
 
+    # Optional directory containing a pretrained agent state to load before training
+    pretrained_state_dir: str | None = None
+
 
 def compute_total_training_steps(
     phases: list[CurriculumPhase], n_steps_episode: int
@@ -93,7 +96,11 @@ def load_curriculum_from_json(
     return phases
 
 
-def train_curriculum(base_config: Config, phases: list[CurriculumPhase]) -> None:
+def train_curriculum(
+    base_config: Config,
+    phases: list[CurriculumPhase],
+    pretrained_state_dir: str | None = None,
+) -> None:
     """Train an agent sequentially across multiple phases"""
 
     # Allow PyTorch to use TF32 (tensor float 32) on Ampere+ GPUs.
@@ -124,6 +131,10 @@ def train_curriculum(base_config: Config, phases: list[CurriculumPhase]) -> None
         sample_obs=temp_env.observation_space.sample(),
         rng=temp_env.np_random,
     )
+
+    if pretrained_state_dir is not None:
+        print(f"Loading pretrained state from {pretrained_state_dir}...")
+        agent.load_state(dir=pretrained_state_dir)
 
     if not base_config.decision.reset_exploration_per_phase and isinstance(
         agent.deliberator, EpsilonGreedy
@@ -377,4 +388,8 @@ if __name__ == "__main__":
     )
 
     # Launch curriculum learning
-    train_curriculum(base_config=args.config, phases=curriculum)
+    train_curriculum(
+        base_config=args.config,
+        phases=curriculum,
+        pretrained_state_dir=args.pretrained_state_dir,
+    )
