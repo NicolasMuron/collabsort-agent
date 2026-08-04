@@ -76,11 +76,16 @@ class Agent:
             self.next_robot_position = None
         else:
             future_state = self.perceiver.get_sensory_state(obs=obs)
-            past_state = self.perceiver.get_past_state(obs=obs)
             self.current_sensory_state = future_state
-            self.current_past_state = past_state
             self.current_agent_position = tuple(obs["self"]["coords"])
             self.current_robot_position = tuple(obs["robot"])
+
+            if self.memory.requires_past_state():
+                past_state = self.perceiver.get_past_state(obs=obs)
+                self.current_past_state = past_state
+            else:
+                self.current_past_state = None
+
             extended_state = self.memory.get_extended_state(sensory_state=future_state)
 
         self.current_extended_state = extended_state
@@ -131,9 +136,13 @@ class Agent:
 
         self.next_extended_state = next_extended_state
         self.next_sensory_state = next_sensory_state
-        self.next_past_state = self.perceiver.get_past_state(obs=next_obs)
         self.next_agent_position = tuple(next_obs["self"]["coords"])
         self.next_robot_position = tuple(next_obs["robot"])
+
+        if self.memory.requires_past_state():
+            self.next_past_state = self.perceiver.get_past_state(obs=next_obs)
+        else:
+            self.next_past_state = None
 
     def log_episode(self, logger: SummaryWriter | None, episode: int) -> None:
         """Log agent information after an episode"""

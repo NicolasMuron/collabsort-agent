@@ -75,6 +75,11 @@ class HistoryMemory(Memory):
         )
         return np.concatenate([sensory_state, past_array])
 
+    def requires_past_state(self) -> bool:
+        """Return whether this memory type needs past-state input."""
+
+        return True
+
     def store_transition(
         self,
         past_state: np.ndarray,

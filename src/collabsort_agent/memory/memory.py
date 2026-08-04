@@ -22,7 +22,7 @@ class MemoryConfig:
     """Memory configuration"""
 
     # Memory type to use
-    type: Literal["none", "history"] = "history"
+    type: Literal["none", "history"] = "none"
 
     # Number of past transitions to keep in memory.
     history_size: int = 5
@@ -53,3 +53,8 @@ class Memory:
 
         # No memory actions
         return []
+
+    def requires_past_state(self) -> bool:
+        """Return whether this memory type needs past-state input."""
+
+        return False
