@@ -50,7 +50,7 @@ class EvalArgs:
     config: Config
     pretrained_state_dir: str | None = None
     seed: int = 42
-    beam_width: int = 200
+    beam_width: int = 50
 
 
 def _make_env(config: Config) -> gym.Env:
