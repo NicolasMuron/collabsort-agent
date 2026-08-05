@@ -11,9 +11,9 @@ def test_history_memory_pads_and_stores_transitions():
     frame = np.array([1.0, 2.0], dtype=np.float32)
     extended = memory.get_extended_state(frame, expected_past_state_size=2)
 
-    assert extended.shape == (26,)
+    assert extended.shape == (32,)
     assert np.allclose(extended[:2], frame)
-    assert np.allclose(extended[2:], np.zeros(24, dtype=np.float32))
+    assert np.allclose(extended[2:], np.zeros(30, dtype=np.float32))
 
     past_state = np.array([0.1, 0.2], dtype=np.float32)
     memory.store_transition(
@@ -25,15 +25,18 @@ def test_history_memory_pads_and_stores_transitions():
     )
 
     extended2 = memory.get_extended_state(frame)
-    assert extended2.shape == (26,)
+    assert extended2.shape == (32,)
     assert np.allclose(extended2[:2], frame)
     assert np.allclose(
-        extended2[2:10],
+        extended2[2:12],
         np.concatenate(
-            [past_state, np.array([1.0, 0.5, 1.0, 2.0, 0.0, 3.0], dtype=np.float32)]
+            [
+                past_state,
+                np.array([1.0, 0.5, 1.0, 2.0, 0.0, 3.0, 1.0, -1.0], dtype=np.float32),
+            ]
         ),
     )
-    assert np.allclose(extended2[10:], np.zeros(16, dtype=np.float32))
+    assert np.allclose(extended2[12:], np.zeros(20, dtype=np.float32))
 
     memory.store_transition(
         np.array([0.3, 0.4], dtype=np.float32),
@@ -44,20 +47,23 @@ def test_history_memory_pads_and_stores_transitions():
     )
     extended3 = memory.get_extended_state(frame)
 
-    assert extended3.shape == (26,)
+    assert extended3.shape == (32,)
     assert np.allclose(extended3[:2], frame)
     assert np.allclose(
-        extended3[2:10],
+        extended3[2:12],
         np.concatenate(
             [
                 np.array([0.3, 0.4], dtype=np.float32),
-                np.array([2.0, -1.0, 2.0, 3.0, 1.0, 4.0], dtype=np.float32),
+                np.array([2.0, -1.0, 2.0, 3.0, 1.0, 4.0, 1.0, -1.0], dtype=np.float32),
             ]
         ),
     )
     assert np.allclose(
-        extended3[10:18],
+        extended3[12:22],
         np.concatenate(
-            [past_state, np.array([1.0, 0.5, 1.0, 2.0, 0.0, 3.0], dtype=np.float32)]
+            [
+                past_state,
+                np.array([1.0, 0.5, 1.0, 2.0, 0.0, 3.0, 1.0, -1.0], dtype=np.float32),
+            ]
         ),
     )

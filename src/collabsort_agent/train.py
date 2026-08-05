@@ -531,7 +531,8 @@ def train(config: Config, pretrained_state_dir: str | None = None) -> None:
             )
 
         # Log episode data
-        ep_metrics.sps = int(training_step / (time.time() - start_time))
+        elapsed_time = time.time() - start_time
+        ep_metrics.sps = int(training_step / elapsed_time) if elapsed_time > 0 else 0
         ep_metrics.log(
             logger=logger,
             episode=episode,
