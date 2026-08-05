@@ -15,7 +15,7 @@ class EvalArgs:
     config: Config
     pretrained_state_dir: str | None = None
     seed: int = 42
-    beam_width: int = 100
+    beam_width: int = 20
 
 
 def beam_search(
