@@ -50,7 +50,8 @@ class EvalArgs:
     config: Config
     pretrained_state_dir: str | None = None
     seed: int = 42
-    beam_width: int = 50
+    beam_width: int = 40
+    beam_heuristic_weight: float = 1.0
 
 
 def _make_env(config: Config) -> gym.Env:
@@ -58,8 +59,44 @@ def _make_env(config: Config) -> gym.Env:
     return gym.make("CollabSort-v0", config=config.env)
 
 
+def _beam_heuristic(env: Any, weight: float) -> float:
+    """Return a heuristic bonus for states where an object is reachable."""
+    if weight <= 0.0:
+        return 0.0
+
+    agent_arm = env.board.agent_arm
+    if agent_arm.picked_object is not None:
+        return 0.0
+
+    agent_coords = agent_arm.gripper.coords
+    pickup_col = agent_arm.base.coords.col
+
+    reachable_objects = []
+    for obj in env.board.moving_objects:
+        obj_coords = obj.coords
+        col_distance = obj_coords.col - pickup_col
+        row_distance = abs(obj_coords.row - agent_coords.row)
+        if col_distance >= 0 and row_distance <= col_distance:
+            reachable_objects.append((obj, col_distance, row_distance))
+
+    if not reachable_objects:
+        return 0.0
+
+    best_value = max(
+        float(obj.get_reward(rewards=env.current_agent_rewards))
+        / (1.0 + 0.5 * row_dist)
+        for obj, _, row_dist in reachable_objects
+    )
+    min_time = min(col_distance for _, col_distance, _ in reachable_objects)
+    return weight * best_value / (1.0 + min_time)
+
+
 def beam_search(
-    config: Config, seed: int, beam_width: int, max_steps: int = 1000
+    config: Config,
+    seed: int,
+    beam_width: int,
+    max_steps: int = 1000,
+    heuristic_weight: float = 0.0,
 ) -> tuple[float, list[str]]:
     """
     Perform beam search using copy.deepcopy on CollabSortEnv (unwrapped).
@@ -86,26 +123,30 @@ def beam_search(
             end="\r",
             flush=True,
         )
-        candidates: list[tuple[float, Any, list[str]]] = []
+        candidates: list[tuple[float, float, Any, list[str]]] = []
 
         for score, env_snapshot, history in beam:
             # Try all possible actions from this snapshot
             for action in Action:
-                # Deepcopy only the unwrapped env — safe since copyreg handles pygame types
                 env_clone: Any = copy.deepcopy(env_snapshot)
-                # Call step directly on the CollabSortEnv (no gym wrapper overhead)
                 _, reward, _, _, _ = env_clone.step(action.value)
 
                 new_score = score + float(reward)
+
+                heuristic_bonus = _beam_heuristic(
+                    env=env_clone, weight=heuristic_weight
+                )
+                eval_score = new_score + heuristic_bonus
+
                 new_history = history + [action.name]
-                candidates.append((new_score, env_clone, new_history))
+                candidates.append((eval_score, new_score, env_clone, new_history))
 
         if not candidates:
             break
 
         # Keep only the top K candidates
         candidates.sort(key=lambda x: x[0], reverse=True)
-        beam = candidates[:beam_width]
+        beam = [(item[1], item[2], item[3]) for item in candidates[:beam_width]]
 
     print("\nBeam search completed.")
     best_score, _, best_history = beam[0]
@@ -113,7 +154,11 @@ def beam_search(
 
 
 def evaluate(
-    config: Config, seed: int, beam_width: int, pretrained_state_dir: str | None
+    config: Config,
+    seed: int,
+    beam_width: int,
+    pretrained_state_dir: str | None,
+    heuristic_weight: float = 0.0,
 ) -> None:
     """Evaluate optimal actions using beam search and compare with an agent."""
 
@@ -164,6 +209,7 @@ def evaluate(
         seed=seed,
         beam_width=beam_width,
         max_steps=config.n_steps_episode,
+        heuristic_weight=heuristic_weight,
     )
     elapsed = time.time() - start_time
 
@@ -193,4 +239,5 @@ if __name__ == "__main__":
         seed=args.seed,
         beam_width=args.beam_width,
         pretrained_state_dir=args.pretrained_state_dir,
+        heuristic_weight=args.beam_heuristic_weight,
     )
