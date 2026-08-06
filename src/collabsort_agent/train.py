@@ -67,6 +67,9 @@ class EpisodeMetrics:
     # Picked object values for this episode
     picked_values: list[float] = field(default_factory=list)
 
+    # Total reward value of all objects that appeared in this episode
+    total_object_reward: float = 0
+
     # Added metrics
     robot_collected_objects: int = 0
     missed_objects: int = 0
@@ -111,6 +114,19 @@ class EpisodeMetrics:
                 logger.add_scalar(
                     tag="training/avg_reward_per_object",
                     scalar_value=sum(self.picked_values) / len(self.picked_values),
+                    global_step=episode,
+                )
+
+            logger.add_scalar(
+                tag="training/total_object_reward",
+                scalar_value=self.total_object_reward,
+                global_step=episode,
+            )
+
+            if self.total_object_reward > 0:
+                logger.add_scalar(
+                    tag="training/reward_ratio",
+                    scalar_value=self.reward / self.total_object_reward,
                     global_step=episode,
                 )
 
@@ -397,6 +413,11 @@ def train(config: Config, pretrained_state_dir: str | None = None) -> None:
 
             if info.get("agent_collision") and 1 <= agent_row <= config.env.n_rows:
                 episode_collisions[agent_row] += 1
+
+            # Track the total reward value of all objects introduced in this episode
+            ep_metrics.total_object_reward = float(
+                info.get("episode_total_object_reward", ep_metrics.total_object_reward)
+            )
 
             ep_metrics.step += 1
 

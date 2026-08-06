@@ -242,6 +242,12 @@ def train_curriculum(
                 ):
                     episode_collisions[agent_row] += 1
 
+                ep_metrics.total_object_reward = float(
+                    info.get(
+                        "episode_total_object_reward", ep_metrics.total_object_reward
+                    )
+                )
+
                 ep_metrics.step += 1
 
                 # Move to next state
