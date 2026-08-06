@@ -21,9 +21,9 @@ class HistoryMemory(Memory):
 
     def __init__(self, config: MemoryConfig) -> None:
         self.history_size = config.history_size
-        self._buffer: deque[
-            tuple[np.ndarray, float, float, np.ndarray, np.ndarray, np.ndarray]
-        ] = deque(maxlen=self.history_size)
+        self._buffer: deque[tuple[np.ndarray, float, float, np.ndarray, np.ndarray]] = (
+            deque(maxlen=self.history_size)
+        )
         self._past_state_size: int | None = None
 
     def reset(self) -> None:
@@ -56,7 +56,6 @@ class HistoryMemory(Memory):
             reward,
             agent_position,
             robot_position,
-            _position_delta,
         ) in reversed(self._buffer):
             past_blocks.append(stored_state)
             past_blocks.append(
@@ -66,7 +65,7 @@ class HistoryMemory(Memory):
                         reward,
                         *agent_position.tolist(),
                         *robot_position.tolist(),
-                        *_position_delta.tolist(),
+                        *(agent_position - robot_position).tolist(),
                     ],
                     dtype=np.float32,
                 )
@@ -96,7 +95,6 @@ class HistoryMemory(Memory):
 
         agent_position_arr = np.array(agent_position, dtype=np.float32)
         robot_position_arr = np.array(robot_position, dtype=np.float32)
-        position_delta = agent_position_arr - robot_position_arr
 
         self._buffer.append(
             (
@@ -105,6 +103,5 @@ class HistoryMemory(Memory):
                 float(reward),
                 agent_position_arr,
                 robot_position_arr,
-                position_delta,
             )
         )
