@@ -25,7 +25,7 @@ class MemoryConfig:
     type: Literal["none", "history"] = "history"
 
     # Number of past transitions to keep in memory.
-    history_size: int = 4
+    history_size: int = 1
 
 
 class Memory:

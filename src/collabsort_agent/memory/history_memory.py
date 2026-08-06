@@ -46,7 +46,7 @@ class HistoryMemory(Memory):
         if self._past_state_size is None:
             return sensory_state
 
-        block_size = self._past_state_size + 2 + 4  # + 2
+        block_size = self._past_state_size + 2 + 4 + 2
         zero_block = np.zeros(block_size, dtype=np.float32)
 
         past_blocks: list[np.ndarray] = []
@@ -65,7 +65,7 @@ class HistoryMemory(Memory):
                         reward,
                         *agent_position.tolist(),
                         *robot_position.tolist(),
-                        # *(agent_position - robot_position).tolist(),
+                        *(agent_position - robot_position).tolist(),
                     ],
                     dtype=np.float32,
                 )
