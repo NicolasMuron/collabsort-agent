@@ -80,6 +80,13 @@ class ActionValueEstimator(ABC):
         # Average Q-values (used for logging)
         self.mean_q_values: list[float] = []
 
+        # Signed TD-error (reward-prediction error, Eq 1) from the most
+        # recent update_action_values() call. Used by outcome-based
+        # confidence calibration (extension 5). Estimators that don't
+        # naturally expose a single per-transition TD-error (e.g. batched
+        # off-policy algorithms) may leave this at its default of 0.0.
+        self.last_td_error: float = 0.0
+
     @abstractmethod
     def get_action_values(self, state: np.ndarray) -> np.ndarray:
         """Return the action values for all actions"""

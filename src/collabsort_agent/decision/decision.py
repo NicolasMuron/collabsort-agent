@@ -97,6 +97,13 @@ class Deliberator(ABC):
         """Reset any phase-dependent exploration state at the start of a new phase."""
         return
 
+    def update_calibration(self, td_error: float) -> None:
+        """
+        Update outcome-based confidence calibration if this deliberator supports metacognitive calibration.
+        No-op by default.
+        """
+        return
+
     @abstractmethod
     def log_episode(self, logger: SummaryWriter, episode: int) -> None:
         """Log information after an episode"""

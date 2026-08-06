@@ -29,6 +29,16 @@ class MetaConfig:
     # Exponential moving average decay for smoothing confidence
     ema_decay: float = 0.1
 
+    # Method used for outcome-based confidence calibration:
+    # - "none": no calibration, confidence is reported as-is.
+    # - "td_error": outcome derived from the sign of the reward-prediction
+    #   error (TD-error), i.e. whether the decision's consequence was at
+    #   least as good as the agent's own prior expectation.
+    confidence_calibration_method: Literal["none", "td_error"] = "td_error"
+
+    # Step size for the confidence calibration bias update
+    calibration_rate: float = 0.05
+
     # Step size for learning rate adjustment
     alpha_rate: float = 0.05
 

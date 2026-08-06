@@ -148,6 +148,11 @@ class ARD(Deliberator):
 
         return chosen_action
 
+    def update_calibration(self, td_error: float) -> None:
+        """Recalibrate decision confidence using the outcome of the last decision (extension 5)"""
+
+        self.meta_monitoring.update_calibration(td_error=td_error)
+
     def _compute_drift_rates(self, q_values: np.ndarray) -> np.ndarray:
         """
         Return the drift rates for all accumulators. Shape: (n_accumulators,).

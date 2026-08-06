@@ -32,7 +32,11 @@ from collabsort_agent.learning.q_learning import Qlearning
 from collabsort_agent.memory.memory import Memory
 from collabsort_agent.memory.stack import StackMemory
 from collabsort_agent.metacognition import Hyperparameters
-from collabsort_agent.metacognition.confidence import BayesianConfidence, GapConfidence
+from collabsort_agent.metacognition.confidence import (
+    BayesianConfidence,
+    GapConfidence,
+    TDErrorCalibration,
+)
 from collabsort_agent.metacognition.controller import MetaController
 from collabsort_agent.metacognition.monitoring import MetaMonitoring
 from collabsort_agent.metrics_tracker import HeatmapTracker
@@ -260,8 +264,20 @@ def _build_deliberator(
             raise ValueError(
                 f"Unrecognized confidence method: {config.meta.confidence_method}"
             )
+        if config.meta.confidence_calibration_method == "none":
+            calibration_method = None
+        elif config.meta.confidence_calibration_method == "td_error":
+            calibration_method = TDErrorCalibration(config=config.meta)
+        else:
+            raise ValueError(
+                "Unrecognized confidence calibration method: "
+                f"{config.meta.confidence_calibration_method}"
+            )
+
         meta_monitoring = MetaMonitoring(
-            config=config.meta, confidence_method=confidence_method
+            config=config.meta,
+            confidence_method=confidence_method,
+            calibration_method=calibration_method,
         )
 
         return ARD(

@@ -52,6 +52,7 @@ class Qlearning(ActionValueEstimator):
         q_target = reward if done else reward + self.config.gamma * q_next_max
         td_error = q_target - q_current
         self.losses.append(abs(td_error))
+        self.last_td_error = td_error
 
         key = self._make_key(state)
         self._table[key][action] += self.hyperparameters.alpha * td_error

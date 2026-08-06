@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 
 from collabsort_agent.decision.accumulators import Accumulators
 from collabsort_agent.decision.decision import DecisionConfig
-from collabsort_agent.metacognition import Hyperparameters
+from collabsort_agent.metacognition import Hyperparameters, MetaConfig
 
 
 class ConfidenceMethod(ABC):
@@ -94,3 +94,66 @@ class BayesianConfidence(ConfidenceMethod):
         """Standard normal CDF, computed via the error function (no scipy dependency)."""
 
         return 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
+
+
+class CalibrationMethod(ABC):
+    """
+    Abstract base class for outcome-based confidence recalibration methods.
+
+    A ConfidenceMethod's output is a claim about the decision process itself
+    ("how much should this particular decision be trusted"). A calibration
+    method compares that claim, after the fact, to an observed outcome, and
+    nudges a bias term so that the confidence value the agent actually acts
+    on stays well-calibrated over time:
+
+        confidence_error = outcome - confidence
+        bias <- bias + calibration_rate * confidence_error
+        calibrated_confidence = clip(confidence + bias, 0, 1)
+    """
+
+    def __init__(self, config: MetaConfig) -> None:
+        self.config = config
+
+        # Learned calibration bias b_c, added to raw/smoothed confidence
+        # before it is reported to the metacognitive controller.
+        self.bias: float = 0.0
+
+    @abstractmethod
+    def compute_outcome(self, td_error: float) -> float:
+        """
+        Compute the outcome signal o in {0, 1} used to recalibrate
+        confidence, from the reward-prediction error (TD-error) observed
+        for the transition that resulted from the decision.
+        """
+
+    def calibrate(self, confidence: float) -> float:
+        """Apply the current calibration bias to a raw/smoothed confidence value (Eq 6f)."""
+
+        return min(1.0, max(0.0, confidence + self.bias))
+
+    def update(self, confidence: float, outcome: float) -> None:
+        """Update the calibration bias from a confidence prediction error (Eq 6d-6e)."""
+
+        confidence_error = outcome - confidence
+        self.bias += self.config.calibration_rate * confidence_error
+
+
+class TDErrorCalibration(CalibrationMethod):
+    """
+    Outcome-based calibration using the sign of the reward-prediction error
+    (TD-error) as the outcome signal:
+
+        o_t = 1[delta_t >= 0]
+
+    i.e. whether the decision's consequence was at least as good as the
+    agent's own prior expectation (no negative surprise), where
+    delta_t = R_t + gamma * max_a' Q(S', a') - Q(S, A) is the TD-error
+    computed by the Learning module for its Q-update.
+
+    This reuses a signal already computed by the Learning module, so it
+    requires no extra bookkeeping, and it is available on every transition
+    (no sparse-reward gaps), unlike outcome definitions based on raw reward.
+    """
+
+    def compute_outcome(self, td_error: float) -> float:
+        return 1.0 if td_error >= 0 else 0.0

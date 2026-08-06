@@ -11,7 +11,11 @@ from collabsort_agent.decision import DecisionConfig
 from collabsort_agent.decision.accumulators import Accumulators
 from collabsort_agent.learning import LearningConfig
 from collabsort_agent.metacognition import Hyperparameters, MetaConfig
-from collabsort_agent.metacognition.confidence import BayesianConfidence, GapConfidence
+from collabsort_agent.metacognition.confidence import (
+    BayesianConfidence,
+    GapConfidence,
+    TDErrorCalibration,
+)
 from collabsort_agent.metacognition.controller import MetaController
 from collabsort_agent.metacognition.monitoring import MetaMonitoring
 
@@ -291,6 +295,241 @@ class TestMetaMonitoring:
             confidence_method=GapConfidence(
                 decision_cfg=decision_cfg, hyperparameters=hyperparameters
             ),
+        )
+
+
+class TestTDErrorCalibrationMethod:
+    def test_compute_outcome_is_one_for_nonnegative_td_error(self) -> None:
+        """A non-negative TD-error (no negative surprise) should count as a success outcome"""
+
+        calibration = TDErrorCalibration(config=MetaConfig())
+
+        assert calibration.compute_outcome(td_error=0.5) == 1.0
+        assert calibration.compute_outcome(td_error=0.0) == 1.0
+
+    def test_compute_outcome_is_zero_for_negative_td_error(self) -> None:
+        """A negative TD-error (negative surprise) should count as a failure outcome"""
+
+        calibration = TDErrorCalibration(config=MetaConfig())
+
+        assert calibration.compute_outcome(td_error=-0.1) == 0.0
+
+    def test_bias_starts_at_zero(self) -> None:
+        """The calibration bias should start at zero (no correction applied initially)"""
+
+        calibration = TDErrorCalibration(config=MetaConfig())
+
+        assert calibration.bias == 0.0
+        assert calibration.calibrate(confidence=0.7) == 0.7
+
+    def test_update_raises_bias_when_outcome_exceeds_confidence(self) -> None:
+        """
+        An outcome better than what confidence predicted (underconfidence)
+        should raise the calibration bias (Eq 6d-6e).
+        """
+
+        calibration = TDErrorCalibration(config=MetaConfig(calibration_rate=0.1))
+
+        calibration.update(confidence=0.4, outcome=1.0)
+
+        # bias <- 0.0 + 0.1 * (1.0 - 0.4) = 0.06
+        assert abs(calibration.bias - 0.06) < 1e-9
+
+    def test_update_lowers_bias_when_outcome_is_below_confidence(self) -> None:
+        """
+        An outcome worse than what confidence predicted (overconfidence)
+        should lower the calibration bias (Eq 6d-6e).
+        """
+
+        calibration = TDErrorCalibration(config=MetaConfig(calibration_rate=0.1))
+
+        calibration.update(confidence=0.9, outcome=0.0)
+
+        # bias <- 0.0 + 0.1 * (0.0 - 0.9) = -0.09
+        assert abs(calibration.bias - (-0.09)) < 1e-9
+
+    def test_calibrate_clips_to_valid_probability_range(self) -> None:
+        """Calibrated confidence should always stay within [0, 1]"""
+
+        calibration = TDErrorCalibration(config=MetaConfig())
+
+        calibration.bias = 0.5
+        assert calibration.calibrate(confidence=0.9) == 1.0
+
+        calibration.bias = -0.5
+        assert calibration.calibrate(confidence=0.2) == 0.0
+
+    def test_repeated_success_outcomes_converge_bias_toward_underconfidence_gap(
+        self,
+    ) -> None:
+        """
+        Repeatedly recalibrating a fixed raw confidence against a fixed,
+        better-than-predicted outcome should converge the *calibrated*
+        confidence toward that outcome (closed calibrate/update loop,
+        asymptotic convergence of Eq 6e-6f).
+        """
+
+        calibration = TDErrorCalibration(config=MetaConfig(calibration_rate=0.2))
+
+        raw_confidence = 0.5
+        outcome = 1.0
+        calibrated_confidence = raw_confidence
+        for _ in range(200):
+            calibrated_confidence = calibration.calibrate(confidence=raw_confidence)
+            calibration.update(confidence=calibrated_confidence, outcome=outcome)
+
+        # The calibrated confidence the agent would act on should converge
+        # close to the outcome it's being calibrated against.
+        assert abs(calibrated_confidence - outcome) < 1e-3
+
+
+class TestMetaMonitoringCalibration:
+    def test_no_calibration_method_leaves_confidence_unchanged(self) -> None:
+        """Without a calibration method, reported confidence should equal the EMA'd value"""
+
+        meta_monitoring = self._make_monitoring(calibration_method=None)
+        accumulators = _make_accumulators(drift_rates=[0.0, 0.0], evidence=[0.7, 1.0])
+
+        confidence = meta_monitoring.compute_decision_confidence(
+            chosen_action=1,
+            runnerup_action=0,
+            reaction_time=10.0,
+            accumulators=accumulators,
+        )
+
+        assert confidence == meta_monitoring.confidence_ema
+
+    def test_update_calibration_is_noop_without_calibration_method(self) -> None:
+        """update_calibration() should be a no-op if no calibration method is configured"""
+
+        meta_monitoring = self._make_monitoring(calibration_method=None)
+        accumulators = _make_accumulators(drift_rates=[0.0, 0.0], evidence=[0.7, 1.0])
+
+        meta_monitoring.compute_decision_confidence(
+            chosen_action=1,
+            runnerup_action=0,
+            reaction_time=10.0,
+            accumulators=accumulators,
+        )
+        meta_monitoring.update_calibration(td_error=-1.0)  # Should not raise
+
+        assert meta_monitoring.calibration_biases == []
+
+    def test_update_calibration_is_noop_before_any_decision(self) -> None:
+        """update_calibration() should be a no-op if no confidence has been reported yet"""
+
+        calibration_method = TDErrorCalibration(config=MetaConfig())
+        meta_monitoring = self._make_monitoring(calibration_method=calibration_method)
+
+        meta_monitoring.update_calibration(td_error=1.0)
+
+        assert calibration_method.bias == 0.0
+        assert meta_monitoring.calibration_biases == []
+
+    def test_compute_decision_confidence_applies_calibration_bias(self) -> None:
+        """A non-zero calibration bias should shift the reported confidence"""
+
+        calibration_method = TDErrorCalibration(config=MetaConfig())
+        calibration_method.bias = 0.2
+        meta_monitoring = self._make_monitoring(calibration_method=calibration_method)
+        accumulators = _make_accumulators(drift_rates=[0.0, 0.0], evidence=[0.7, 1.0])
+
+        confidence = meta_monitoring.compute_decision_confidence(
+            chosen_action=1,
+            runnerup_action=0,
+            reaction_time=10.0,
+            accumulators=accumulators,
+        )
+
+        assert abs(confidence - (meta_monitoring.confidence_ema + 0.2)) < 1e-9
+
+    def test_update_calibration_uses_last_reported_confidence(self) -> None:
+        """
+        update_calibration() should recalibrate against the confidence value
+        that was actually reported for the most recent decision (i.e. after
+        EMA smoothing and any prior calibration), not the raw confidence.
+        """
+
+        calibration_method = TDErrorCalibration(config=MetaConfig(calibration_rate=0.1))
+        meta_monitoring = self._make_monitoring(
+            config=MetaConfig(ema_decay=0.0, calibration_rate=0.1),
+            calibration_method=calibration_method,
+        )
+        # Zero confidence (chosen == runner-up evidence, gap = 0)
+        accumulators = _make_accumulators(drift_rates=[0.0, 0.0], evidence=[0.5, 0.5])
+
+        reported_confidence = meta_monitoring.compute_decision_confidence(
+            chosen_action=1,
+            runnerup_action=0,
+            reaction_time=10.0,
+            accumulators=accumulators,
+        )
+        assert reported_confidence == 0.0
+
+        # Positive TD-error -> outcome = 1.0 -> confidence_error = 1.0 - 0.0
+        meta_monitoring.update_calibration(td_error=0.5)
+
+        # bias <- 0.0 + 0.1 * (1.0 - 0.0) = 0.1
+        assert abs(calibration_method.bias - 0.1) < 1e-9
+        assert meta_monitoring.calibration_biases == [calibration_method.bias]
+
+    def test_log_episode_logs_mean_calibration_bias_and_resets(self) -> None:
+        """log_episode() should log the mean calibration bias for the episode and clear it"""
+
+        calibration_method = TDErrorCalibration(config=MetaConfig(calibration_rate=0.1))
+        meta_monitoring = self._make_monitoring(
+            config=MetaConfig(ema_decay=0.0),
+            calibration_method=calibration_method,
+        )
+        accumulators = _make_accumulators(drift_rates=[0.0, 0.0], evidence=[0.5, 0.5])
+
+        meta_monitoring.compute_decision_confidence(
+            chosen_action=1,
+            runnerup_action=0,
+            reaction_time=10.0,
+            accumulators=accumulators,
+        )
+        meta_monitoring.update_calibration(td_error=0.5)
+        meta_monitoring.compute_decision_confidence(
+            chosen_action=1,
+            runnerup_action=0,
+            reaction_time=10.0,
+            accumulators=accumulators,
+        )
+        meta_monitoring.update_calibration(td_error=-0.5)
+
+        expected_mean_bias = sum(meta_monitoring.calibration_biases) / 2
+
+        logger = LoggerStub()
+        meta_monitoring.log_episode(logger=logger.as_summary_writer(), episode=5)
+
+        tags = {tag for tag, _, _ in logger.scalars}
+        assert "metacognition/calibration_bias" in tags
+
+        bias_entry = next(
+            entry
+            for entry in logger.scalars
+            if entry[0] == "metacognition/calibration_bias"
+        )
+        assert abs(bias_entry[1] - expected_mean_bias) < 1e-9
+        assert bias_entry[2] == 5
+        assert meta_monitoring.calibration_biases == []
+
+    def _make_monitoring(
+        self,
+        config: MetaConfig | None = None,
+        calibration_method: TDErrorCalibration | None = None,
+    ) -> MetaMonitoring:
+        decision_cfg = DecisionConfig(theta_start=1.0)
+        hyperparameters = Hyperparameters(
+            decision_cfg=decision_cfg, learning_cfg=LearningConfig()
+        )
+        return MetaMonitoring(
+            config=config or MetaConfig(),
+            confidence_method=GapConfidence(
+                decision_cfg=decision_cfg, hyperparameters=hyperparameters
+            ),
+            calibration_method=calibration_method,
         )
 
 

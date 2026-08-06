@@ -83,6 +83,13 @@ class Agent:
             done=done,
         )
 
+        # Recalibrate decision confidence with the outcome of this transition
+        # (extension 5: outcome-based confidence calibration). No-op for
+        # deliberators/estimators that don't support it.
+        self.deliberator.update_calibration(
+            td_error=self.deliberator.estimator.last_td_error
+        )
+
         self.next_extended_state = next_extended_state
 
     def log_episode(self, logger: SummaryWriter | None, episode: int) -> None:
