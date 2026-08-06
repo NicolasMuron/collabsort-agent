@@ -1,9 +1,8 @@
 import copy
 import copyreg
-import re
+import sys
 import time
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 import gymnasium as gym
@@ -18,8 +17,6 @@ from collabsort_agent.config import Config
 
 # ---------------------------------------------------------------------------
 # Make pygame.Surface and pygame.freetype.Font deepcopy-able.
-# Since we run in RenderMode.NONE, we only need the geometry (size, flags),
-# not the pixel content. We serialize them as blank surfaces / fonts.
 # ---------------------------------------------------------------------------
 def _surface_reduce(surface: pygame.Surface):
     size = surface.get_size()
@@ -28,7 +25,7 @@ def _surface_reduce(surface: pygame.Surface):
 
 
 def _surface_restore(size, flags):
-    pygame.display.init()  # required for Surface creation without a display
+    pygame.display.init()
     return pygame.Surface(size, flags)
 
 
@@ -52,9 +49,11 @@ class EvalArgs:
 
     config: Config
     pretrained_state_dir: str | None = None
-    seed: int = 42
-    beam_width: int = 20
+    beam_width: int = 10
     beam_heuristic_weight: float = 1.0
+    start_episode: int = 0
+    max_episode: int = 300
+    episode_step: int = 50
     log_dir: str = "runs/oracle_vs_agent"
 
 
@@ -102,15 +101,7 @@ def beam_search(
     max_steps: int = 1000,
     heuristic_weight: float = 0.0,
 ) -> tuple[float, list[str]]:
-    """
-    Perform beam search using copy.deepcopy on CollabSortEnv (unwrapped).
-
-    Gymnasium wrappers (OrderEnforcing, etc.) may override __deepcopy__ to
-    return self, breaking the beam search. We bypass them by deepcopying only
-    the unwrapped CollabSortEnv and calling step() on it directly.
-
-    Returns (best_accumulated_reward, best_action_sequence).
-    """
+    """Perform beam search for a given episode (seed)."""
     wrapper_env = _make_env(config)
     wrapper_env.reset(seed=seed)
     init_unwrapped: Any = wrapper_env.unwrapped
@@ -139,7 +130,6 @@ def beam_search(
                     env=env_clone, weight=heuristic_weight
                 )
 
-                # Safety guard: Discard heuristic bonus if the action caused a failed pick or collision
                 if step_reward <= -5.0:
                     heuristic_bonus = 0.0
 
@@ -158,133 +148,101 @@ def beam_search(
     return best_score, best_history
 
 
-def evaluate_agent_on_seed(
-    config: Config,
-    seed: int,
-    agent: Any,
-) -> float:
-    """Run a single deterministic evaluation episode for a given agent instance."""
-    env_agent = _make_env(config)
-
-    # Disable exploration / set agent to evaluation mode if supported
-    if hasattr(agent, "eval"):
-        agent.eval()
-
-    obs, _ = env_agent.reset(seed=seed)
-    agent_score = 0.0
-    ep_over = False
-    agent_steps = 0
-
-    while not ep_over:
-        # Pass float('inf') to disable exploration (greedy deterministic policy)
-        action = agent.act(obs=obs, training_step=float("inf"))
-        obs, reward, terminated, truncated, _ = env_agent.step(action)
-        agent_score += float(reward)
-        agent_steps += 1
-        ep_over = terminated or truncated or agent_steps >= config.n_steps_episode
-
-    return agent_score
-
-
 def evaluate(
     config: Config,
-    seed: int,
-    beam_width: int,
     pretrained_state_dir: str | None,
-    heuristic_weight: float = 0.0,
+    beam_width: int = 10,
+    heuristic_weight: float = 1.0,
+    start_episode: int = 0,
+    max_episode: int = 300,
+    episode_step: int = 50,
     log_dir: str = "runs/oracle_vs_agent",
 ) -> None:
-    """Evaluate optimal actions using beam search and compare with an agent across training checkpoints."""
+    """Evaluate Agent vs Oracle on episodes 0, 50, 100, 150, 200, 250, 300."""
 
     print("========================================")
     print("Starting Evaluation (Agent vs Oracle)")
+    print(f"Episodes: from {start_episode} to {max_episode} (step: {episode_step})")
     print(
-        f"Seed: {seed}, Beam Width: {beam_width}, Max Steps: {config.n_steps_episode}"
-    )
-    print(
-        f"Agent Model Dir: {pretrained_state_dir if pretrained_state_dir else 'Random (No model provided)'}"
+        f"Agent Model: {pretrained_state_dir if pretrained_state_dir else 'Random (No model provided)'}"
     )
     print("========================================")
 
     writer = SummaryWriter(log_dir=log_dir)
 
-    # --- 1. Compute Oracle Score (Cached/Computed once for this seed) ---
-    print("\n--- Evaluating Oracle (Beam Search) ---")
-    start_time = time.time()
-    oracle_score, best_history = beam_search(
-        config=config,
-        seed=seed,
-        beam_width=beam_width,
-        max_steps=config.n_steps_episode,
-        heuristic_weight=heuristic_weight,
-    )
-    elapsed = time.time() - start_time
-    print(f"Oracle completed in {elapsed:.2f}s with score: {oracle_score:.2f}")
-
-    # --- 2. Find Checkpoints for Full Training Run ---
+    # Load agent
+    env_agent = _make_env(config)
     from collabsort_agent.train import create_agent
 
-    dummy_env = _make_env(config)
     agent = create_agent(
         config=config,
-        sample_obs=dummy_env.observation_space.sample(),
-        rng=dummy_env.np_random,
+        sample_obs=env_agent.observation_space.sample(),
+        rng=env_agent.np_random,
     )
-
-    checkpoints = []
     if pretrained_state_dir is not None:
-        state_path = Path(pretrained_state_dir)
-        if state_path.is_dir():
-            # Look for step subdirectories or checkpoint files in training directory
-            subdirs = [d for d in state_path.iterdir() if d.is_dir()]
-            for d in subdirs:
-                match = re.search(r"(\d+)", d.name)
-                step_num = int(match.group(1)) if match else 0
-                checkpoints.append((step_num, str(d)))
-            checkpoints.sort(key=lambda x: x[0])
+        agent.load_state(dir=pretrained_state_dir)
 
-    if not checkpoints:
-        # Fallback to evaluating the single path provided or a raw untrained agent
-        checkpoints = [(0, pretrained_state_dir)]
+    if hasattr(agent, "eval") and callable(agent.eval):
+        agent.eval()
 
-    print(f"\n--- Evaluating Agent across {len(checkpoints)} checkpoint(s) ---")
+    # Loop over episodes 0, 50, 100, ..., 300
+    for episode_num in range(start_episode, max_episode + 1, episode_step):
+        # The seed IS the episode number!
+        seed = episode_num
 
-    # --- 3. Evaluate Agent Checkpoints and Log to TensorBoard ---
-    for step_num, ckpt_dir in checkpoints:
-        if ckpt_dir is not None:
-            agent.load_state(dir=ckpt_dir)
+        print("\n========================================")
+        print(f"EVALUATING EPISODE {episode_num} (Seed = {seed})")
+        print("========================================")
 
-        agent_score = evaluate_agent_on_seed(config, seed, agent)
+        # --- 1. Evaluate Agent on Episode N ---
+        obs, _ = env_agent.reset(seed=seed)
+        agent_score = 0.0
+        ep_over = False
+        agent_steps = 0
+
+        while not ep_over:
+            action = agent.act(obs=obs, training_step=sys.maxsize)
+            obs, reward, terminated, truncated, _ = env_agent.step(action)
+            agent_score += float(reward)
+            agent_steps += 1
+            ep_over = terminated or truncated or agent_steps >= config.n_steps_episode
+
+        print(f"Agent Score: {agent_score:.2f} ({agent_steps} steps)")
+
+        # --- 2. Evaluate Oracle on Episode N ---
+        start_time = time.time()
+        oracle_score, _ = beam_search(
+            config=config,
+            seed=seed,
+            beam_width=beam_width,
+            max_steps=config.n_steps_episode,
+            heuristic_weight=heuristic_weight,
+        )
+        elapsed = time.time() - start_time
+
         ratio = (agent_score / oracle_score * 100.0) if oracle_score != 0 else 0.0
 
-        print(
-            f"Step {step_num:8d} | Agent Score: {agent_score:7.2f} | Oracle Score: {oracle_score:7.2f} | Performance: {ratio:5.1f}%"
-        )
+        print(f"Oracle Score: {oracle_score:.2f} (Calculated in {elapsed:.2f}s)")
+        print(f"Performance:  {ratio:.1f}%")
 
-        # Log metrics to TensorBoard
-        writer.add_scalar("Score/Agent", agent_score, step_num)
-        writer.add_scalar("Score/Oracle", oracle_score, step_num)
-        writer.add_scalar("Performance/Ratio_percentage", ratio, step_num)
+        # Log to TensorBoard (X-axis = episode number: 0, 50, 100...)
+        writer.add_scalar("Score/Agent", agent_score, episode_num)
+        writer.add_scalar("Score/Oracle", oracle_score, episode_num)
+        writer.add_scalar("Performance/Ratio_percentage", ratio, episode_num)
 
     writer.close()
-    print(f"\nTensorBoard logs written to '{log_dir}'")
-
-    # Save optimal actions to a file
-    with open("optimal_actions.txt", "w") as f:
-        f.write(f"Seed: {seed}\n")
-        f.write(f"Oracle Score: {oracle_score}\n")
-        f.write("Actions:\n")
-        f.write(",".join(best_history) + "\n")
-    print("Optimal action sequence saved to 'optimal_actions.txt'")
+    print(f"\nEvaluation finished. TensorBoard logs saved to '{log_dir}'")
 
 
 if __name__ == "__main__":
     args: EvalArgs = tyro.cli(EvalArgs)
     evaluate(
         config=args.config,
-        seed=args.seed,
-        beam_width=args.beam_width,
         pretrained_state_dir=args.pretrained_state_dir,
+        beam_width=args.beam_width,
         heuristic_weight=args.beam_heuristic_weight,
+        start_episode=args.start_episode,
+        max_episode=args.max_episode,
+        episode_step=args.episode_step,
         log_dir=args.log_dir,
     )

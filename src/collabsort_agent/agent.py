@@ -2,6 +2,8 @@
 Agent definitions.
 """
 
+from typing import Any
+
 import numpy as np
 from gym_collabsort.config import Action
 from torch.utils.tensorboard import SummaryWriter
@@ -55,6 +57,20 @@ class Agent:
         self.next_past_state = None
         self.next_agent_position = None
         self.next_robot_position = None
+
+    def eval(self) -> None:
+        """Switch any trainable components into evaluation mode."""
+
+        estimator = self.deliberator.estimator
+        if hasattr(estimator, "q_network"):
+            q_network: Any = estimator.q_network
+            if q_network is not None and hasattr(q_network, "eval"):
+                q_network.eval()
+
+        if hasattr(estimator, "target_network"):
+            target_network: Any = estimator.target_network
+            if target_network is not None and hasattr(target_network, "eval"):
+                target_network.eval()
 
     def act(
         self,
