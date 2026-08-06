@@ -73,10 +73,7 @@ class MetaMonitoring:
 
         # Apply outcome-based calibration bias, if configured
         if self.calibration_method is not None:
-            calibrated_confidence = self.calibration_method.calibrate(
-                confidence=confidence
-            )
-        confidence = calibrated_confidence
+            confidence = self.calibration_method.calibrate(confidence=confidence)
 
         self.confidences.append(confidence)
         self._last_confidence = confidence

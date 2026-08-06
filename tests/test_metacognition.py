@@ -186,7 +186,7 @@ class TestMetaMonitoring:
             config=MetaConfig(confidence_target=0.6)
         )
 
-        assert meta_monitoring.confidence_ema == 0.6
+        assert meta_monitoring.smoothed_confidence == 0.6
 
     def test_compute_decision_confidence_smooths_with_ema(self) -> None:
         """Confidence should be smoothed via EMA rather than used raw"""
@@ -210,7 +210,7 @@ class TestMetaMonitoring:
         )
         # ema = 0.5*0.75 + 0.5*0.0 = 0.375
         assert abs(ema - 0.375) < 1e-9
-        assert abs(meta_monitoring.confidence_ema - 0.375) < 1e-9
+        assert abs(meta_monitoring.smoothed_confidence - 0.375) < 1e-9
 
         ema = meta_monitoring.compute_decision_confidence(
             chosen_action=1,
@@ -220,7 +220,7 @@ class TestMetaMonitoring:
         )
         # ema = 0.5*0.375 + 0.5*1.0 = 0.6875
         assert abs(ema - 0.6875) < 1e-6
-        assert abs(meta_monitoring.confidence_ema - 0.6875) < 1e-6
+        assert abs(meta_monitoring.smoothed_confidence - 0.6875) < 1e-6
 
     def test_compute_decision_confidence_records_value(self) -> None:
         """Each computed confidence should be appended right after computation"""
@@ -397,7 +397,7 @@ class TestMetaMonitoringCalibration:
             accumulators=accumulators,
         )
 
-        assert confidence == meta_monitoring.confidence_ema
+        assert confidence == meta_monitoring.smoothed_confidence
 
     def test_update_calibration_is_noop_without_calibration_method(self) -> None:
         """update_calibration() should be a no-op if no calibration method is configured"""
@@ -441,7 +441,7 @@ class TestMetaMonitoringCalibration:
             accumulators=accumulators,
         )
 
-        assert abs(confidence - (meta_monitoring.confidence_ema + 0.2)) < 1e-9
+        assert abs(confidence - (meta_monitoring.smoothed_confidence + 0.2)) < 1e-9
 
     def test_update_calibration_uses_last_reported_confidence(self) -> None:
         """
