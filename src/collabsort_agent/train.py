@@ -83,7 +83,7 @@ class EpisodeMetrics:
 
         if logger is not None:
             logger.add_scalar(
-                tag="training/reward",
+                tag="training/cumulated_reward",
                 scalar_value=self.reward,
                 global_step=episode,
             )

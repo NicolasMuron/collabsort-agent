@@ -50,7 +50,7 @@ class EvalArgs:
     config: Config
     pretrained_state_dir: str | None = None
     beam_width: int = 10
-    beam_heuristic_weight: float = 1.0
+    beam_heuristic_weight: float = 1.5
     start_episode: int = 0
     max_episode: int = 300
     episode_step: int = 50
