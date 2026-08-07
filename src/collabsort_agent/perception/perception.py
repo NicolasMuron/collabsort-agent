@@ -14,7 +14,7 @@ class PerceptionConfig:
     # Number of future columns visible to the right of the agent
     n_future_cols: int = 6
     # Number of past columns visible to the left of the agent
-    n_past_cols: int = 2
+    n_past_cols: int = 3
     # Enable 45-degree cone vision (more columns on upper rows)
     cone_perception: bool = False
 
