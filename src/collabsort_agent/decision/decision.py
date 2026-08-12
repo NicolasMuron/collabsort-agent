@@ -22,7 +22,7 @@ class DecisionConfig:
     # ---------- Exploration decay ----------
 
     # Starting exploration probability
-    epsilon_start: float = 1.0
+    epsilon_start: float = 0.05
 
     # Minimum exploration probability at the end of decay
     epsilon_min: float = 0.05
