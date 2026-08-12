@@ -93,6 +93,8 @@ def load_phases(
     if pretrained_state_dir is not None and os.path.exists(pretrained_state_dir):
         pretrained_cfg = load_cfg(dir=pretrained_state_dir)
         all_active_treadmills.update(pretrained_cfg.env.active_treadmills)
+        base_config.perception = pretrained_cfg.perception
+        print("Perception config overridden by the pretrained model's config.")
 
     # Crucial step for zero-padding: the agent's initial perceiver must have ALL treadmills
     # that will be used across the entire curriculum, to initialize the correct network size.
