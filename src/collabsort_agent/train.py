@@ -118,8 +118,9 @@ def train(
         logger = SummaryWriter(f"{train_dir}", flush_secs=60)
 
     # Temporary environment to sample observation space for agent creation
-    initial_env_config = phases[0].env_config if phases else base_config.env
-    temp_env = gym.make("CollabSort-v0", config=initial_env_config)
+    # We use base_config.env because it has been updated in load_phases to include all
+    # treadmills across the curriculum, ensuring the agent is sized for the max observation.
+    temp_env = gym.make("CollabSort-v0", config=base_config.env)
 
     # Create agent
     agent = create_agent(

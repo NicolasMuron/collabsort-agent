@@ -302,7 +302,7 @@ class DQN(ActionValueEstimator):
 
     def save_state(self, dir: str) -> None:
         Path(dir).mkdir(parents=True, exist_ok=True)
-        file_path = f"{dir}/{self.state_filename}"
+        file_path = Path(dir) / self.state_filename
         torch.save(
             {
                 "q_network": self.q_network.state_dict(),
@@ -313,7 +313,7 @@ class DQN(ActionValueEstimator):
         )
 
     def load_state(self, dir: str) -> None:
-        file_path = f"{dir}/{self.state_filename}"
+        file_path = Path(dir) / self.state_filename
         checkpoint = torch.load(file_path, map_location=self.device)
 
         self.q_network.load_state_dict(checkpoint["q_network"])
