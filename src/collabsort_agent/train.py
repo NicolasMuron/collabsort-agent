@@ -4,6 +4,7 @@ Train an agent.
 
 import copy
 import json
+import os
 import time
 from dataclasses import dataclass
 
@@ -19,6 +20,8 @@ from gym_collabsort.config import Action, RobotStrategy
 from gym_collabsort.config import Config as EnvConfig
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import trange
+
+from collabsort_agent.config import load_cfg
 
 matplotlib.use("Agg")
 
@@ -46,44 +49,50 @@ class TrainArgs:
     pretrained_state_dir: str | None = None
 
 
-def load_phases(base_config: Config, json_path: str | None) -> list[CurriculumPhase]:
+def load_phases(
+    base_config: Config, json_path: str | None, pretrained_state_dir: str | None = None
+) -> list[CurriculumPhase]:
     """Load curriculum phases from a JSON file and update base_config treadmills."""
-
-    if json_path is None:
-        return [
-            CurriculumPhase(
-                name="Default Phase",
-                n_episodes=base_config.n_episodes,
-                env_config=base_config.env,
-            )
-        ]
-
-    print(f"Loading curriculum from {json_path}...")
-    with open(json_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
 
     phases = []
     all_active_treadmills = set(base_config.env.active_treadmills)
 
-    for phase_data in data:
-        env_config = copy.deepcopy(base_config.env)
-
-        # Apply overrides
-        for k, v in phase_data.get("env_overrides", {}).items():
-            if k == "robot_strategy":
-                v = RobotStrategy(v)
-            elif k == "active_treadmills":
-                v = tuple(v)  # Ensure it is a tuple as expected by the environment
-                all_active_treadmills.update(v)
-            setattr(env_config, k, v)
-
+    if json_path is None:
         phases.append(
             CurriculumPhase(
-                name=phase_data["name"],
-                n_episodes=phase_data["n_episodes"],
-                env_config=env_config,
+                name="Default Phase",
+                n_episodes=base_config.n_episodes,
+                env_config=copy.deepcopy(base_config.env),
             )
         )
+    else:
+        print(f"Loading curriculum from {json_path}...")
+        with open(json_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        for phase_data in data:
+            env_config = copy.deepcopy(base_config.env)
+
+            # Apply overrides
+            for k, v in phase_data.get("env_overrides", {}).items():
+                if k == "robot_strategy":
+                    v = RobotStrategy(v)
+                elif k == "active_treadmills":
+                    v = tuple(v)  # Ensure it is a tuple as expected by the environment
+                    all_active_treadmills.update(v)
+                setattr(env_config, k, v)
+
+            phases.append(
+                CurriculumPhase(
+                    name=phase_data["name"],
+                    n_episodes=phase_data["n_episodes"],
+                    env_config=env_config,
+                )
+            )
+
+    if pretrained_state_dir is not None and os.path.exists(pretrained_state_dir):
+        pretrained_cfg = load_cfg(dir=pretrained_state_dir)
+        all_active_treadmills.update(pretrained_cfg.env.active_treadmills)
 
     # Crucial step for zero-padding: the agent's initial perceiver must have ALL treadmills
     # that will be used across the entire curriculum, to initialize the correct network size.
@@ -92,7 +101,9 @@ def load_phases(base_config: Config, json_path: str | None) -> list[CurriculumPh
         f"Agent's perceiver initialized with global active treadmills: {base_config.env.active_treadmills}"
     )
 
-    print(f"Successfully loaded {len(phases)} phases.")
+    if json_path is not None:
+        print(f"Successfully loaded {len(phases)} phases.")
+
     return phases
 
 
@@ -400,7 +411,9 @@ if __name__ == "__main__":
 
     # Build the curriculum phases from the JSON file
     curriculum_phases = load_phases(
-        base_config=args.config, json_path=args.curriculum_file
+        base_config=args.config,
+        json_path=args.curriculum_file,
+        pretrained_state_dir=args.pretrained_state_dir,
     )
 
     # Launch the training process
