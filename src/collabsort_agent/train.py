@@ -263,13 +263,16 @@ def train(
                 if dist <= 2:
                     reward_up += float(base_config.env.collision_penalty)
 
+                # Action PICK
+                reward_pick = float(
+                    base_config.env.step_reward + base_config.env.failed_action_penalty
+                )
+
                 possible_rewards = {
                     Action.NONE: reward_none,
                     Action.DOWN: reward_down,
                     Action.UP: reward_up,
-                    # PICK in the void is strictly worse than NONE for stats purposes (avoids polluting the PICK match counter),
-                    # but stays numerically close to NONE so it doesn't distort optimized_reward.
-                    Action.PICK: reward_none - 1e-6,
+                    Action.PICK: reward_pick,
                 }
 
                 # Action PICK
