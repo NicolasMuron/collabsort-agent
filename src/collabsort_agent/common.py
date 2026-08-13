@@ -1,8 +1,8 @@
 from dataclasses import dataclass, field
 
+import matplotlib.pyplot as plt
 import numpy as np
 from gym_collabsort.config import Action
-from matplotlib.figure import Figure
 from torch.utils.tensorboard import SummaryWriter
 
 from collabsort_agent.agent import Agent
@@ -69,16 +69,14 @@ class EpisodeMetrics:
     robot_collected_objects: int = 0
     missed_objects: int = 0
 
+    # Optimal reward computed by the oracle DP
+    oracle_reward: float = 0
+    # Agent action counts by action name
+    agent_action_counts: dict[str, int] = field(default_factory=dict)
+    # Optimal matches by action name
+    optimal_matches_by_action: dict[str, int] = field(default_factory=dict)
+    # Total number of optimal action matches
     optimal_action_matches: int = 0
-    optimal_matches_by_action: dict = field(
-        default_factory=lambda: {"NONE": 0, "UP": 0, "DOWN": 0, "PICK": 0}
-    )
-    optimal_action_counts: dict = field(
-        default_factory=lambda: {"NONE": 0, "UP": 0, "DOWN": 0, "PICK": 0}
-    )
-    agent_action_counts: dict = field(
-        default_factory=lambda: {"NONE": 0, "UP": 0, "DOWN": 0, "PICK": 0}
-    )
 
     def log(
         self,
@@ -89,10 +87,10 @@ class EpisodeMetrics:
 
         if logger is not None:
             logger.add_scalars(
-                main_tag="training/rewards",
+                main_tag="training/comparison_rewards",
                 tag_scalar_dict={
-                    "real": self.reward,
-                    "optimized": self.optimized_reward,
+                    "agent": self.reward,
+                    "oracle": self.oracle_reward,
                 },
                 global_step=episode,
             )
@@ -100,7 +98,9 @@ class EpisodeMetrics:
             if self.step > 0:
                 logger.add_scalar(
                     tag="training/optimal_action_match_ratio",
-                    scalar_value=self.optimal_action_matches / self.step,
+                    scalar_value=(
+                        self.optimal_action_matches / self.step if self.step > 0 else 0
+                    ),
                     global_step=episode,
                 )
                 if self.optimal_action_matches > 0:
@@ -110,12 +110,14 @@ class EpisodeMetrics:
                         self.optimal_matches_by_action.get(a, 0) for a in actions
                     ]
 
-                    fig = Figure(figsize=(6, 4))
-                    ax = fig.add_subplot(111)
+                    fig, ax = plt.subplots(figsize=(6, 4))
 
                     # Plot executed first (background)
                     ax.bar(
-                        actions, executed, label="Réalisée (Total)", color="lightgray"
+                        actions,
+                        executed,
+                        label="Réalisée (Total)",
+                        color="lightgray",
                     )
 
                     # Plot matched on top (foreground)
@@ -128,6 +130,7 @@ class EpisodeMetrics:
                     logger.add_figure(
                         "training/actions_bar_chart", fig, global_step=episode
                     )
+                    plt.close(fig)
 
             logger.add_scalar(
                 tag="training/collisions",
