@@ -70,7 +70,7 @@ class EpisodeMetrics:
     missed_objects: int = 0
 
     # Optimal reward computed by the oracle DP
-    oracle_reward: float = 0
+    optimal_reward: float = 0
     # Agent action counts by action name
     agent_action_counts: dict[str, int] = field(default_factory=dict)
     # Optimal matches by action name
@@ -90,7 +90,7 @@ class EpisodeMetrics:
                 main_tag="training/comparison_rewards",
                 tag_scalar_dict={
                     "agent": self.reward,
-                    "oracle": self.oracle_reward,
+                    "oracle": self.optimal_reward,
                 },
                 global_step=episode,
             )

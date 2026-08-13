@@ -225,7 +225,7 @@ def train(
                 if 1 <= agent_row <= base_config.env.n_rows:
                     episode_visitation[agent_row] += 1
 
-                # Record state for the Oracle DP
+                # Record state for the optimal rewards
                 arm_base_col = int(obs["self"]["coords"][1])
                 trajectory.record(
                     obs=obs,
@@ -305,16 +305,16 @@ def train(
                     or ep_metrics.step >= base_config.n_steps_episode
                 )
 
-            # Compute optimal theoretical reward via DP Oracle
-            oracle_res = compute_optimal_reward(trajectory, base_config)
-            # oracle_res may be (reward, actions) or a plain float
-            if isinstance(oracle_res, (tuple, list)):
-                oracle_reward, opt_actions = oracle_res
+            # Compute optimal theoretical reward
+            optimal_res = compute_optimal_reward(trajectory, base_config)
+            # optimal_res may be (reward, actions) or a plain float
+            if isinstance(optimal_res, (tuple, list)):
+                optimal_reward, opt_actions = optimal_res
             else:
-                oracle_reward = float(oracle_res)
+                optimal_reward = float(optimal_res)
                 opt_actions = []
 
-            ep_metrics.oracle_reward = float(oracle_reward)
+            ep_metrics.optimal_reward = float(optimal_reward)
 
             # Compute agent action counts and optimal action matches
             agent_counts: dict[str, int] = {}
