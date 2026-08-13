@@ -90,7 +90,7 @@ class EpisodeMetrics:
                 main_tag="training/comparison_rewards",
                 tag_scalar_dict={
                     "agent": self.reward,
-                    "oracle": self.optimal_reward,
+                    "optimal": self.optimal_reward,
                 },
                 global_step=episode,
             )
