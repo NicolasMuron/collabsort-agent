@@ -1,7 +1,7 @@
 """
-Oracle reward computation via Dynamic Programming.
+Optimal reward computation via Dynamic Programming.
 
-At the end of each training episode, the oracle takes the exact trajectory
+At the end of each training episode, the agent takes the exact trajectory
 (robot positions + objects that appeared) recorded during that episode and
 computes the OPTIMAL cumulative reward an agent could have achieved.
 """
@@ -52,7 +52,7 @@ class EpisodeTrajectory:
         self.steps.append(StepRecord(robot_row=robot_row, pickable=pickable))
 
 
-def compute_oracle_reward(
+def compute_optimal_reward(
     trajectory: EpisodeTrajectory, config: Config
 ) -> tuple[float, list[int]]:
     """

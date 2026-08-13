@@ -29,7 +29,7 @@ from collabsort_agent.common import EpisodeMetrics, create_agent
 from collabsort_agent.config import Config, save_cfg
 from collabsort_agent.decision.epsilon_greedy import EpsilonGreedy
 from collabsort_agent.metrics_tracker import HeatmapTracker
-from collabsort_agent.oracle import EpisodeTrajectory, compute_oracle_reward
+from collabsort_agent.optimal_rewards import EpisodeTrajectory, compute_optimal_reward
 
 
 @dataclass
@@ -306,7 +306,7 @@ def train(
                 )
 
             # Compute optimal theoretical reward via DP Oracle
-            oracle_res = compute_oracle_reward(trajectory, base_config)
+            oracle_res = compute_optimal_reward(trajectory, base_config)
             # oracle_res may be (reward, actions) or a plain float
             if isinstance(oracle_res, (tuple, list)):
                 oracle_reward, opt_actions = oracle_res
