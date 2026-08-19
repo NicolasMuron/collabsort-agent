@@ -34,7 +34,7 @@ class MetaConfig:
     # - "td_error": outcome derived from the sign of the reward-prediction
     #   error (TD-error), i.e. whether the decision's consequence was at
     #   least as good as the agent's own prior expectation.
-    confidence_calibration_method: Literal["none", "td_error"] = "td_error"
+    confidence_calibration_method: Literal["none", "td_error"] = "none"
 
     # Step size for the confidence calibration bias update
     calibration_rate: float = 0.05
