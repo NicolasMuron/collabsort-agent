@@ -24,7 +24,7 @@ class LearningConfig:
         "dd_dqn",
         "per",
         "n_step",
-    ] = "ql"
+    ] = "dqn"
 
     # Discount factor for Temporal-Difference algorithms
     gamma: float = 0.99
