@@ -53,6 +53,13 @@ class ARD(Deliberator):
 
         action_values = self.estimator.get_action_values(state=state)
 
+        # Scale Q-values to prevent drift rates from exploding when rewards are large.
+        # This keeps the confidence calculation mathematically sound and prevents theta
+        # from becoming permanently stuck at theta_min due to artificial 100% confidence.
+        max_abs_q = np.max(np.abs(action_values))
+        if max_abs_q > 1.0:
+            action_values = action_values / max_abs_q
+
         n_actions = len(action_values)
         if n_actions == 1:
             return 0  # Only one possible action
