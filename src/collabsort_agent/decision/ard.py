@@ -53,12 +53,17 @@ class ARD(Deliberator):
 
         action_values = self.estimator.get_action_values(state=state)
 
-        # Convert Q-values to Advantages by subtracting the mean (State Value).
-        # This prevents the urgency term (w_s * (Q_i + Q_j)) from exploding as the
-        # State Value grows during training, which would artificially inflate drift rates.
-        # Unlike dividing by max_abs_q, this perfectly preserves the absolute differences
-        # (Q_i - Q_j) so the agent maintains proper signal-to-noise ratio.
-        action_values = action_values - np.mean(action_values)
+        # Standardize Q-values to make them scale-invariant.
+        # Centering prevents the urgency term from exploding, while dividing by the
+        # standard deviation ensures that the absolute differences (Q_i - Q_j) are always
+        # scaled relative to the current spread of values. This allows the metacognitive
+        # controller to dynamically adjust theta based on relative uncertainty, rather
+        # than being stuck at 0.2 (if raw differences are huge) or 3.0 (if dividing by max_abs_q).
+        std_q = np.std(action_values)
+        if std_q > 1e-6:
+            action_values = (action_values - np.mean(action_values)) / std_q
+        else:
+            action_values = action_values - np.mean(action_values)
 
         n_actions = len(action_values)
         if n_actions == 1:
