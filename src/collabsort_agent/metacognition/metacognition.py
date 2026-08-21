@@ -27,7 +27,7 @@ class MetaConfig:
     confidence_target: float = 0.75
 
     # Exponential moving average decay for smoothing confidence
-    ema_decay: float = 0.1
+    ema_decay: float = 0.9
 
     # Method used for outcome-based confidence calibration:
     # - "none": no calibration, confidence is reported as-is.
