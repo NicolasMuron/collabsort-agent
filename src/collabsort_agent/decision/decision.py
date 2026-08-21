@@ -54,7 +54,7 @@ class DecisionConfig:
     w_d: float = 1.0
 
     # Weight of the sum (Q_i + Q_j) term
-    w_s: float = 0.1
+    w_s: float = 0.001
 
     # Urgency / baseline drift added to every accumulator
     V_0: float = 0.1

@@ -43,7 +43,7 @@ class MetaConfig:
     alpha_rate: float = 0.05
 
     # Step size for decision threshold adjustment
-    theta_rate: float = 0.005
+    theta_rate: float = 0.05
 
 
 @dataclass
