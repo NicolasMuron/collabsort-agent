@@ -17,7 +17,7 @@ class DecisionConfig:
     """Decision configuration"""
 
     # Deision algorithm to use
-    algorithm: Literal["eps", "ard"] = "ard"
+    algorithm: Literal["eps", "ard"] = "eps"
 
     # ---------- Exploration decay ----------
 
@@ -54,7 +54,7 @@ class DecisionConfig:
     w_d: float = 1.0
 
     # Weight of the sum (Q_i + Q_j) term
-    w_s: float = 0.001
+    w_s: float = 0.1
 
     # Urgency / baseline drift added to every accumulator
     V_0: float = 0.1
