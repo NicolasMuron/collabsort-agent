@@ -17,7 +17,7 @@ class DecisionConfig:
     """Decision configuration"""
 
     # Deision algorithm to use
-    algorithm: Literal["eps", "ard"] = "eps"
+    algorithm: Literal["eps", "ard"] = "ard"
 
     # ---------- Exploration decay ----------
 
@@ -42,7 +42,7 @@ class DecisionConfig:
     decision_rule: Literal["win-all"] = "win-all"
 
     # Initial value for decision threshold (adjusted via metacognition)
-    theta_start: float = 1.0
+    theta_start: float = 1.5
 
     # Minimum decision threshold
     theta_min: float = 0.2
