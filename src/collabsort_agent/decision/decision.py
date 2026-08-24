@@ -42,7 +42,7 @@ class DecisionConfig:
     decision_rule: Literal["win-all"] = "win-all"
 
     # Initial value for decision threshold (adjusted via metacognition)
-    theta_start: float = 1.5
+    theta_start: float = 1.0
 
     # Minimum decision threshold
     theta_min: float = 0.2
