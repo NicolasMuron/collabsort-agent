@@ -306,23 +306,16 @@ def train(
                 )
 
             # Compute optimal theoretical reward
-            optimal_res = compute_optimal_reward(trajectory, base_config)
-            # optimal_res may be (reward, actions) or a plain float
-            if isinstance(optimal_res, (tuple, list)):
-                optimal_reward, opt_actions = optimal_res
-            else:
-                optimal_reward = float(optimal_res)
-                opt_actions = []
+            optimal_reward, opt_actions = compute_optimal_reward(
+                trajectory, base_config
+            )
 
             ep_metrics.optimal_reward = float(optimal_reward)
 
             # Compute agent action counts and optimal action matches
             agent_counts: dict[str, int] = {}
             for a_idx in action_history:
-                try:
-                    name = Action(int(a_idx)).name
-                except (ValueError, TypeError):
-                    name = f"action_{int(a_idx)}"
+                name = Action(int(a_idx)).name
                 agent_counts[name] = agent_counts.get(name, 0) + 1
 
             optimal_matches_by_action: dict[str, int] = {}
@@ -351,10 +344,7 @@ def train(
             agent.log_episode(logger=logger, episode=global_episode)
 
             # --- HEATMAPS ---
-            try:
-                n_actions = int(agent.deliberator.estimator.n_actions)
-            except (AttributeError, TypeError):
-                n_actions = len(Action)
+            n_actions = len(Action)
 
             heatmap_tracker.update(
                 action_history=action_history,
