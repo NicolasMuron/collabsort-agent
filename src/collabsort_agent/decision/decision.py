@@ -25,7 +25,7 @@ class DecisionConfig:
     epsilon_start: float = 1.0
 
     # Minimum exploration probability at the end of decay
-    epsilon_min: float = 0.05
+    epsilon_min: float = 0
 
     # Exploration probability decay algorithm
     exploration_decay: Literal["lin", "exp"] = "lin"
