@@ -80,7 +80,7 @@ def compute_optimal_reward(
     fail_pen: float = float(env_cfg.failed_action_penalty)
 
     def _collision(agent_row: int, robot_row: int) -> bool:
-        return abs(agent_row - robot_row) < 1
+        return agent_row == robot_row
 
     pi: dict[int, dict[tuple[int, int], int]] = {}
 
