@@ -47,8 +47,15 @@ class LinearExplorationDecay(ExplorationDecay):
         self._reset_state()
 
     def _reset_state(self) -> None:
+        epsilon_range = self.config.epsilon_start - self.config.epsilon_min
+
+        # No decay needed: epsilon is already at its minimum
+        if epsilon_range <= 0:
+            self._decay_slope: float = 0.0
+            return
+
         # Pre-compute decay slope (ε_min - ε_start) / decay_steps
-        self._decay_slope: float = (
+        self._decay_slope = (
             self.config.epsilon_min - self.config.epsilon_start
         ) / self.decay_steps
 
@@ -65,16 +72,18 @@ class ExponentialExplorationDecay(ExplorationDecay):
         self._reset_state()
 
     def _reset_state(self) -> None:
+        epsilon_range = self.config.epsilon_start - self.config.epsilon_min
+
+        # No decay needed: epsilon is already at its minimum
+        if epsilon_range <= 0:
+            self._decay_rate: float = 0.0
+            return
+
         # Maximal difference between current and minimum values of epsilon for stopping decay
         epsilon_delta = 0.01
 
-        # Pre-compute the decay rate λ
-        self._decay_rate: float = (
-            -np.log(
-                epsilon_delta / (self.config.epsilon_start - self.config.epsilon_min)
-            )
-            / self.decay_steps
-        )
+        # Pre-compute the decay rate λ such that ε reaches ε_min + epsilon_delta after decay_steps
+        self._decay_rate = -np.log(epsilon_delta / epsilon_range) / self.decay_steps
 
     def _decay_epsilon(self, training_step: int) -> float:
         # Decay epsilon exponentially: ε = ε_min + (ε_start - ε_min) * exp(-λt)
