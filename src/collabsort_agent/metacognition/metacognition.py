@@ -16,7 +16,7 @@ class MetaConfig:
     # Method used to compute decision confidence:
     # - "gap": normalized distance between winner/runner-up slowest accumulators.
     # - "bayesian": posterior probability that the winning action's drift truly exceeds the runner-up's.
-    confidence_method: Literal["gap", "bayesian"] = "bayesian"
+    confidence_method: Literal["gap", "bayesian"] = "gap"
 
     # Desired confidence level [0..1].
     # The meaningful range/scale of this parameter depends on confidence_method:
