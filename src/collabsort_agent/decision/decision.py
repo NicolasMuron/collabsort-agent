@@ -17,7 +17,7 @@ class DecisionConfig:
     """Decision configuration"""
 
     # Deision algorithm to use
-    algorithm: Literal["eps", "ard"] = "eps"
+    algorithm: Literal["eps", "ard"] = "ard"
 
     # ---------- Exploration decay ----------
 
@@ -28,7 +28,7 @@ class DecisionConfig:
     epsilon_min: float = 0
 
     # Exploration probability decay algorithm
-    exploration_decay: Literal["lin", "exp"] = "ard"
+    exploration_decay: Literal["lin", "exp"] = "lin"
 
     # Percentage of training time during which exploration probability is decayed
     decay_span: float = 0.5
