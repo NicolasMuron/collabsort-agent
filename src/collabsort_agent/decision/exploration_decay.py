@@ -49,7 +49,7 @@ class LinearExplorationDecay(ExplorationDecay):
     def _reset_state(self) -> None:
         epsilon_range = self.config.epsilon_start - self.config.epsilon_min
 
-        # No decay needed: epsilon is already at its minimum
+        # If no decay needed, epsilon is already at its minimum
         if epsilon_range <= 0:
             self._decay_slope: float = 0.0
             return
@@ -74,7 +74,7 @@ class ExponentialExplorationDecay(ExplorationDecay):
     def _reset_state(self) -> None:
         epsilon_range = self.config.epsilon_start - self.config.epsilon_min
 
-        # No decay needed: epsilon is already at its minimum
+        # If no decay needed, epsilon is already at its minimum
         if epsilon_range <= 0:
             self._decay_rate: float = 0.0
             return

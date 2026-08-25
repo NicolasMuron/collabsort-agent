@@ -9,9 +9,6 @@ import time
 from dataclasses import dataclass
 
 import gymnasium as gym
-
-# Use a non-interactive backend for matplotlib to avoid Tkinter
-# objects being created on worker threads (prevents Tkinter cleanup errors)
 import matplotlib
 import numpy as np
 import torch
