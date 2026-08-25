@@ -17,7 +17,7 @@ class DecisionConfig:
     """Decision configuration"""
 
     # Deision algorithm to use
-    algorithm: Literal["eps", "ard"] = "ard"
+    algorithm: Literal["eps", "ard"] = "eps"
 
     # ---------- Exploration decay ----------
 
@@ -31,7 +31,7 @@ class DecisionConfig:
     exploration_decay: Literal["lin", "exp"] = "lin"
 
     # Percentage of training time during which exploration probability is decayed
-    decay_span: float = 0.5
+    decay_span: float = 0.6
 
     # If enabled, reset the exploration decay at the start of each curriculum phase.
     reset_exploration_per_phase: bool = False
@@ -42,13 +42,13 @@ class DecisionConfig:
     decision_rule: Literal["win-all"] = "win-all"
 
     # Initial value for decision threshold (adjusted via metacognition)
-    theta_start: float = 5.0
+    theta_start: float = 1.0
 
     # Minimum decision threshold
     theta_min: float = 0.2
 
     # Maximum decision threshold
-    theta_max: float = 10.0
+    theta_max: float = 3.0
 
     # Weight of the advantage (Q_i - Q_j) term
     w_d: float = 1.0

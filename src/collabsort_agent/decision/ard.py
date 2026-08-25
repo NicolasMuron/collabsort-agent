@@ -53,14 +53,6 @@ class ARD(Deliberator):
 
         action_values = self.estimator.get_action_values(state=state)
 
-        action_values = action_values - np.mean(action_values)
-
-        std_q = np.std(action_values)
-        if std_q > 1e-6:
-            action_values = (action_values - np.mean(action_values)) / std_q
-        else:
-            action_values = action_values - np.mean(action_values)
-
         n_actions = len(action_values)
         if n_actions == 1:
             return 0  # Only one possible action
