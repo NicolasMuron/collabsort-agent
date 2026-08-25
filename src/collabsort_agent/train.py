@@ -128,7 +128,7 @@ def train(
     prefix = "train_curriculum" if is_curriculum else "train"
 
     # Create directory path for training output
-    train_dir = f"runs/{prefix}_{int(time.time())}_{base_config.decision.algorithm}_{base_config.learning.algorithm}_{base_config.memory.type}"
+    train_dir = f"runs/{prefix}_{int(time.time())}_{base_config.decision.algorithm}_{base_config.learning.algorithm}"
 
     logger = None
     if base_config.log_events:
