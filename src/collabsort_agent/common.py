@@ -69,7 +69,7 @@ class EpisodeMetrics:
     robot_collected_objects: int = 0
     missed_objects: int = 0
 
-    # Optimal reward computed by the oracle DP
+    # Optimal reward computed by the DP
     optimal_reward: float = 0
     # Agent action counts by action name
     agent_action_counts: dict[str, int] = field(default_factory=dict)
@@ -87,7 +87,7 @@ class EpisodeMetrics:
 
         if logger is not None:
             logger.add_scalars(
-                main_tag="training/comparison_rewards",
+                main_tag="training/rewards",
                 tag_scalar_dict={
                     "agent": self.reward,
                     "optimal": self.optimal_reward,
