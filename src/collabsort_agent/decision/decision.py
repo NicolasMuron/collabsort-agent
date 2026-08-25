@@ -28,7 +28,7 @@ class DecisionConfig:
     epsilon_min: float = 0
 
     # Exploration probability decay algorithm
-    exploration_decay: Literal["lin", "exp"] = "lin"
+    exploration_decay: Literal["lin", "exp"] = "ard"
 
     # Percentage of training time during which exploration probability is decayed
     decay_span: float = 0.5
@@ -42,13 +42,13 @@ class DecisionConfig:
     decision_rule: Literal["win-all"] = "win-all"
 
     # Initial value for decision threshold (adjusted via metacognition)
-    theta_start: float = 1.0
+    theta_start: float = 5.0
 
     # Minimum decision threshold
     theta_min: float = 0.2
 
     # Maximum decision threshold
-    theta_max: float = 3.0
+    theta_max: float = 10.0
 
     # Weight of the advantage (Q_i - Q_j) term
     w_d: float = 1.0
