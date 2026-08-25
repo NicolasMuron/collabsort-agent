@@ -31,7 +31,7 @@ class DecisionConfig:
     exploration_decay: Literal["lin", "exp"] = "lin"
 
     # Percentage of training time during which exploration probability is decayed
-    decay_span: float = 0.6
+    decay_span: float = 0.4
 
     # If enabled, reset the exploration decay at the start of each curriculum phase.
     reset_exploration_per_phase: bool = False
